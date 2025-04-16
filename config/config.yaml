@@ -1,0 +1,74 @@
+# Main configuration for the Data Analysis Agent
+
+# Application Settings
+app:
+  name: "Data Analysis LLM Agent"
+  description: "An AI-powered application for data analysis using multiple LLM models"
+  debug: ${DEBUG:False}
+  log_level: ${LOG_LEVEL:INFO}
+
+# Models Configuration
+models:
+  # These will be implemented later
+  openai:
+    model_name: "gpt-4"
+    max_tokens: ${MAX_TOKENS:8192}
+    temperature: 0.2
+    timeout: 60
+  
+  claude:
+    model_name: "claude-3-5-sonnet-20240620"
+    max_tokens: 4096
+    temperature: 0.2
+    timeout: 60
+  
+  opensource:
+    # Updated to match the correct model IDs
+    model_type: "phi3-mini-4k"  # Options: phi3-mini-4k, phi3-mini-128k
+    local_model_path: ${PHI3_MODEL_PATH:"microsoft/Phi-3-mini-4k-instruct"}
+    hosted_endpoint: ${PHI3_ENDPOINT:""}
+    max_tokens: ${MAX_TOKENS:4096}
+    temperature: 0.2
+    timeout: 120
+
+# Database Settings - commented out for initial version
+# database:
+#   host: ${MYSQL_HOST:localhost}
+#   user: ${MYSQL_USER:root}
+#   password: ${MYSQL_PASSWORD:password}
+#   database: ${MYSQL_DATABASE:data_analysis_agent}
+#   port: 3306
+#   pool_size: 5
+#   max_overflow: 10
+
+# Execution Engine Settings
+execution_engine:
+  timeout: 30  # Maximum seconds for code execution
+  max_memory_mb: 1024  # Maximum memory usage allowed
+  sandbox_type: "llm_sandbox"  # Options: llm_sandbox, restricted_python
+  allowed_libraries:
+    - pandas
+    - numpy
+    - matplotlib
+    - seaborn
+    - plotly
+    - scikit-learn
+    - scipy
+    - statsmodels
+
+# Datasets
+datasets:
+  sample_datasets_path: "data/sample_datasets"
+  user_datasets_path: "data/user_datasets"
+  max_upload_size_mb: 100
+
+# Evaluation Settings
+evaluation:
+  benchmark_datasets:
+    - "DS-1000"
+    - "Data Science Agent Benchmark"
+  metrics:
+    - "functional_correctness"
+    - "semantic_correctness"
+    - "execution_time"
+    - "code_quality"
