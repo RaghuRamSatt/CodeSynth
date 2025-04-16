@@ -15,6 +15,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import base64
 from io import StringIO, BytesIO
+import chardet
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ class ExecutionEngine:
             
         self.config = config.get("execution_engine", {})
         self.timeout = self.config.get("timeout", 30)  # Default 30 seconds
-        self.max_memory_mb = self.config.get("max_memory_mb", 1024)  # Default 1GB
+        self.max_memory_mb = self.config.get("max_memory_mb", 4096)  # Default 4GB
         self.allowed_libraries = self.config.get("allowed_libraries", [
             "pandas", "numpy", "matplotlib", "seaborn", "plotly", 
             "scikit-learn", "scipy", "statsmodels"
@@ -137,14 +138,44 @@ class ExecutionEngine:
         }
         
         # If a dataset is provided, try to load it
+        # if dataset_path and os.path.exists(dataset_path):
+        #     try:
+        #         if dataset_path.endswith(".csv"):
+        #             df = pd.read_csv(dataset_path)
+        #         elif dataset_path.endswith((".xls", ".xlsx")):
+        #             df = pd.read_excel(dataset_path)
+        #         elif dataset_path.endswith(".json"):
+        #             df = pd.read_json(dataset_path)
+        #         else:
+        #             df = None
+        #             result["error"] += f"Unsupported dataset format: {dataset_path}\n"
+                
+        #         if df is not None:
+        #             exec_globals["df"] = df
+        #     except Exception as e:
+        #         result["error"] += f"Error loading dataset: {str(e)}\n"
+        
+        # If a dataset is provided, try to load it with encoding detection
         if dataset_path and os.path.exists(dataset_path):
             try:
                 if dataset_path.endswith(".csv"):
-                    df = pd.read_csv(dataset_path)
+                    # Detect file encoding
+                    with open(dataset_path, 'rb') as f:
+                        result = chardet.detect(f.read())
+                    encoding = result['encoding']
+                    
+                    # Load with detected encoding
+                    df = pd.read_csv(dataset_path, encoding=encoding)
+                    logger.info(f"Loaded CSV with detected encoding: {encoding}")
                 elif dataset_path.endswith((".xls", ".xlsx")):
                     df = pd.read_excel(dataset_path)
                 elif dataset_path.endswith(".json"):
-                    df = pd.read_json(dataset_path)
+                    # Detect encoding for JSON too
+                    with open(dataset_path, 'rb') as f:
+                        result = chardet.detect(f.read())
+                    encoding = result['encoding']
+                    
+                    df = pd.read_json(dataset_path, encoding=encoding)
                 else:
                     df = None
                     result["error"] += f"Unsupported dataset format: {dataset_path}\n"
@@ -153,7 +184,7 @@ class ExecutionEngine:
                     exec_globals["df"] = df
             except Exception as e:
                 result["error"] += f"Error loading dataset: {str(e)}\n"
-        
+
         # Add code to capture matplotlib figures
         code = """
 import matplotlib.pyplot as plt
@@ -200,9 +231,9 @@ _captured_figures = _get_figures_as_base64()
         
         try:
             # Set resource limits
-            resource.setrlimit(resource.RLIMIT_CPU, (self.timeout, self.timeout))
-            resource.setrlimit(resource.RLIMIT_AS, (self.max_memory_mb * 1024 * 1024, 
-                                                   self.max_memory_mb * 1024 * 1024))
+            # resource.setrlimit(resource.RLIMIT_CPU, (self.timeout, self.timeout))
+            # resource.setrlimit(resource.RLIMIT_AS, (self.max_memory_mb * 1024 * 1024, 
+            #                                        self.max_memory_mb * 1024 * 1024))
             
             # Execute the code
             with contextlib.redirect_stdout(output_buffer):

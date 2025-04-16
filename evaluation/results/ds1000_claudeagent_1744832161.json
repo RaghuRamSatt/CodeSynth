@@ -1,0 +1,89 @@
+{
+    "agent_id": "ClaudeAgent",
+    "timestamp": "2025-04-16T15:35:04.153271",
+    "overall_metrics": {
+        "accuracy": 0.0,
+        "correct_count": 0,
+        "total_problems": 5,
+        "avg_generation_time": 4.1852973937988285,
+        "library_metrics": {
+            "Numpy": {
+                "total": 5,
+                "correct": 0,
+                "accuracy": 0.0
+            }
+        }
+    },
+    "test_cases": [
+        {
+            "problem_id": 0,
+            "library": "Numpy",
+            "prompt": "Problem:\nHow do I get the dimensions of an array? For instance, this is (2, 2):\na = np.array([[1,2],[3,4]])\n\nA:\n<code>\nimport numpy as np\na = np.array([[1,2],[3,4]])\n</code>\nresult = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "import numpy as np\n\n# Create the example array\na = np.array([[1,2],[3,4]])\n\ntry:\n    # Get the dimensions of the array using the shape attribute\n    result = a.shape\n    \n    # Visualize the array and its dimensions\n    import matplotlib.pyplot as plt\n    \n    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10,4))\n    \n    # Plot the array\n    im = ax1.imshow(a, cmap='viridis')\n    ax1.set_title('Array Visualization')\n    for i in range(a.shape[0]):\n        for j in range(a.shape[1]):\n            ax1.text(j, i, str(a[i, j]), ha='center', va='center', color='w')\n    fig.colorbar(im, ax=ax1)\n    \n    # Plot the dimensions\n    ax2.bar(['Rows', 'Columns'], result)\n    ax2.set_title('Array Dimensions')\n    ax2.set_ylabel('Size')\n    \n    for i, v in enumerate(result):\n        ax2.text(i, v, str(v), ha='center', va='bottom')\n    \n    plt.tight_layout()\n    plt.show()\n\nexcept Exception as e:\n    print(f\"An error occurred: {e}\")",
+            "generation_time": 4.710195541381836,
+            "evaluation": {
+                "error": "Evaluation failed",
+                "execution": false,
+                "string": false,
+                "correct": false
+            },
+            "correct": false
+        },
+        {
+            "problem_id": 1,
+            "library": "Numpy",
+            "prompt": "Problem:\nI want to figure out how to remove nan values from my array. \nFor example, My array looks something like this:\nx = [1400, 1500, 1600, nan, nan, nan ,1700] #Not in this exact configuration\nHow can I remove the nan values from x to get sth like:\nx = [1400, 1500, 1600, 1700]\nA:\n<code>\nimport numpy as np\nx = np.array([1400, 1500, 1600, np.nan, np.nan, np.nan ,1700])\n</code>\nx = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "import numpy as np\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\n# Load the data\ntry:\n    x = np.array([1400, 1500, 1600, np.nan, np.nan, np.nan, 1700])\nexcept Exception as e:\n    print(f\"Error loading data: {e}\")\n    exit()\n\n# Remove NaN values\nx = x[~np.isnan(x)]\n\n# Visualize the data before and after NaN removal\ntry:\n    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))\n    \n    # Original data\n    ax1.plot(range(len(np.array([1400, 1500, 1600, np.nan, np.nan, np.nan, 1700]))), \n             np.array([1400, 1500, 1600, np.nan, np.nan, np.nan, 1700]), 'bo-')\n    ax1.set_title('Original Data')\n    ax1.set_xlabel('Index')\n    ax1.set_ylabel('Value')\n    \n    # Data after NaN removal\n    ax2.plot(range(len(x)), x, 'ro-')\n    ax2.set_title('Data After NaN Removal')\n    ax2.set_xlabel('Index')\n    ax2.set_ylabel('Value')\n    \n    plt.tight_layout()\n    plt.show()\nexcept Exception as e:\n    print(f\"Error creating visualization: {e}\")\n\n# Print the result\nprint(\"Array after removing NaN values:\")\nprint(x)",
+            "generation_time": 5.599581003189087,
+            "evaluation": {
+                "error": "Evaluation failed",
+                "execution": false,
+                "string": false,
+                "correct": false
+            },
+            "correct": false
+        },
+        {
+            "problem_id": 2,
+            "library": "Numpy",
+            "prompt": "Problem:\nI want to figure out how to replace nan values from my array with np.inf. \nFor example, My array looks something like this:\nx = [1400, 1500, 1600, nan, nan, nan ,1700] #Not in this exact configuration\nHow can I replace the nan values from x?\nA:\n<code>\nimport numpy as np\nx = np.array([1400, 1500, 1600, np.nan, np.nan, np.nan ,1700])\n</code>\nx = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "import numpy as np\n\n# Original array\nx = np.array([1400, 1500, 1600, np.nan, np.nan, np.nan, 1700])\n\n# Replace nan values with np.inf\nx = np.where(np.isnan(x), np.inf, x)\n\n# Print result to verify\nprint(x)",
+            "generation_time": 0.3030548095703125,
+            "evaluation": {
+                "error": "Evaluation failed",
+                "execution": false,
+                "string": false,
+                "correct": false
+            },
+            "correct": false
+        },
+        {
+            "problem_id": 3,
+            "library": "Numpy",
+            "prompt": "Problem:\nI want to figure out how to remove nan values from my array. \nFor example, My array looks something like this:\nx = [[1400, 1500, 1600, nan], [1800, nan, nan ,1700]] #Not in this exact configuration\nHow can I remove the nan values from x?\nNote that after removing nan, the result cannot be np.array due to dimension mismatch, so I want to convert the result to list of lists.\nx = [[1400, 1500, 1600], [1800, 1700]]\nA:\n<code>\nimport numpy as np\nx = np.array([[1400, 1500, 1600, np.nan], [1800, np.nan, np.nan ,1700]])\n</code>\nresult = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "import numpy as np\n\n# Input array\nx = np.array([[1400, 1500, 1600, np.nan], [1800, np.nan, np.nan, 1700]])\n\n# Remove nan values and convert to list of lists\nresult = []\nfor row in x:\n    # Filter out nan values for each row\n    filtered_row = [val for val in row if not np.isnan(val)]\n    # Only add non-empty rows\n    if filtered_row:\n        result.append(filtered_row)\n\n# Print result for verification\nprint(result)\n\n# Error handling\ntry:\n    assert isinstance(result, list), \"Result is not a list\"\n    assert all(isinstance(row, list) for row in result), \"Not all elements are lists\"\n    assert all(not np.isnan(val) for row in result for val in row), \"NaN values still present\"\nexcept AssertionError as e:\n    print(f\"Error: {e}\")",
+            "generation_time": 3.6874639987945557,
+            "evaluation": {
+                "error": "Evaluation failed",
+                "execution": false,
+                "string": false,
+                "correct": false
+            },
+            "correct": false
+        },
+        {
+            "problem_id": 4,
+            "library": "Numpy",
+            "prompt": "Problem:\nLet's say I have a 1d numpy positive integer array like this:\na = array([1,0,3])\nI would like to encode this as a 2D one-hot array(for natural number)\nb = array([[0,1,0,0], [1,0,0,0], [0,0,0,1]])\nThe leftmost element corresponds to 0 in `a`(NO MATTER whether 0 appears in `a` or not.), and the rightmost vice versa.\nIs there a quick way to do this only using numpy? Quicker than just looping over a to set elements of b, that is.\nA:\n<code>\nimport numpy as np\na = np.array([1, 0, 3])\n</code>\nb = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "import numpy as np\n\n# Input array\na = np.array([1, 0, 3])\n\ntry:\n    # Get the maximum value in the input array\n    max_val = np.max(a)\n    \n    # Create a 2D array of zeros with shape (len(a), max_val + 1)\n    # +1 is to account for 0 index\n    b = np.zeros((len(a), max_val + 1), dtype=int)\n    \n    # Use advanced indexing to set the appropriate elements to 1\n    b[np.arange(len(a)), a] = 1\n    \n    # Print the result\n    print(\"One-hot encoded array:\")\n    print(b)\n\nexcept ValueError as e:\n    print(f\"Error: {e}. Please ensure the input array contains valid integers.\")\nexcept Exception as e:\n    print(f\"An unexpected error occurred: {e}\")\n\n# Visualization (optional)\ntry:\n    import matplotlib.pyplot as plt\n    \n    fig, ax = plt.subplots(figsize=(10, 5))\n    ax.imshow(b, cmap='binary')\n    ax.set_yticks(range(len(a)))\n    ax.set_yticklabels(a)\n    ax.set_xticks(range(max_val + 1))\n    ax.set_title(\"One-hot Encoded Array Visualization\")\n    ax.set_xlabel(\"Encoded Values\")\n    ax.set_ylabel(\"Original Values\")\n    plt.colorbar(ax.imshow(b, cmap='binary'), ax=ax)\n    plt.tight_layout()\n    plt.show()\n\nexcept ImportError:\n    print(\"Matplotlib is not installed. Skipping visualization.\")\nexcept Exception as e:\n    print(f\"Error in visualization: {e}\")",
+            "generation_time": 6.62619161605835,
+            "evaluation": {
+                "error": "Evaluation failed",
+                "execution": false,
+                "string": false,
+                "correct": false
+            },
+            "correct": false
+        }
+    ]
+}
