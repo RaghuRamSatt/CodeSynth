@@ -8,11 +8,9 @@ import shutil
 import time
 import base64
 import pandas as pd
-import numpy as np
 import streamlit as st
 from dotenv import load_dotenv
 from io import StringIO, BytesIO
-import matplotlib.pyplot as plt
 import seaborn as sns
 from llm_sandbox import SandboxSession
 
@@ -60,8 +58,9 @@ with st.sidebar:
     uploaded = st.file_uploader("Choose a CSV/Excel/JSON file", type=["csv","xlsx","xls","json"])
     if uploaded:
         try:
-            save_dir = os.path.join("data","user_datasets"); os.makedirs(save_dir,exist_ok=True)
-            path = os.path.join(save_dir, "data.csv")
+            save_dir = os.path.join("data", "user_datasets")
+            os.makedirs(save_dir, exist_ok=True)
+            path = os.path.join(save_dir, uploaded.name)
             with open(path,'wb') as f: f.write(uploaded.getbuffer())
             if uploaded.name.endswith('csv'):
                 df = pd.read_csv(path)
@@ -70,7 +69,8 @@ with st.sidebar:
             elif uploaded.name.endswith('json'):
                 df = pd.read_json(path)
             else:
-                df=None; st.error("Unsupported format")
+                df = None; st.error("Unsupported format")
+            df.to_csv(os.path.join(save_dir, 'data.csv'), index=False)
             if df is not None:
                 st.session_state.dataset = df
                 st.session_state.dataset_path = path
@@ -91,17 +91,21 @@ with st.sidebar:
     st.subheader("Or Use Sample Dataset")
     choices=["None","Iris","Diamonds","Tips","Planets"]
     sel=st.selectbox("Select sample:",choices)
-    if sel!="None":
+    if sel != "None":
         try:
-            if sel=="Iris":
+            fname = "data.csv"
+            if sel == "Iris":
                 from sklearn.datasets import load_iris
-                ir=load_iris(); df=pd.DataFrame(ir.data,columns=ir.feature_names)
-                df['species']=pd.Categorical.from_codes(ir.target,ir.target_names)
-                fname="iris.csv"
+                ir = load_iris()
+                df = pd.DataFrame(ir.data, columns=ir.feature_names)
+                df['species'] = pd.Categorical.from_codes(ir.target, ir.target_names)
+                fname = "iris.csv"
             else:
-                df=sns.load_dataset(sel.lower()); fname=f"{sel.lower()}.csv"
-            sd=os.path.join("data","sample_datasets"); os.makedirs(sd,exist_ok=True)
-            fp=os.path.join(sd,fname); df.to_csv(fp,index=False)
+                df = sns.load_dataset(sel.lower())
+            sd = os.path.join("data", "sample_datasets")
+            os.makedirs(sd, exist_ok=True)
+            fp = os.path.join(sd, fname)
+            df.to_csv(fp, index=False)
             st.session_state.dataset, st.session_state.dataset_path = df, fp
             st.session_state.dataset_info={"name":sel,"shape":df.shape,
                 "columns":[{"name":c,"type":str(df[c].dtype),"description":"","sample":str(df[c].iloc[0]) if not df.empty else ""} for c in df.columns],
@@ -111,9 +115,9 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Error loading sample: {e}")
     if st.button("Clear Conversation"):
-        st.session_state.conversation=[]
-        st.session_state.generated_code=""
-        st.session_state.code_execution_results=None
+        st.session_state.conversation = []
+        st.session_state.generated_code = ""
+        st.session_state.code_execution_results = None
         st.success("Cleared!")
 
 # Execute code in sandbox
@@ -131,13 +135,7 @@ def execute_code():
         os.makedirs(tmp_fig_dir, exist_ok=True)
         # build script: monkey-patch, user code, save figs
         prelude="""
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-import base64
-from io import BytesIO, StringIO
-from sklearn import datasets, metrics, model_selection, preprocessing, decomposition, cluster
 import warnings
 warnings.filterwarnings('ignore')
 _original_figure=plt.figure
@@ -173,7 +171,6 @@ for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
             out = getattr(result, 'text', '')
             # collect figures
             ls = sess.execute_command('ls /sandbox/figs')
-            print(ls, ls.text)
             names = ls.text.strip().split() if ls.text else []
             figs = []
             for fn in names:
@@ -192,7 +189,7 @@ for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
         st.session_state.code_execution_results=res
 
 # Main layout
-col1,col2=st.columns([3,2])
+col1, col2 = st.columns([3,2])
 with col1:
     if st.session_state.dataset is not None:
         st.subheader('Dataset Preview')
@@ -209,9 +206,9 @@ with col1:
                 try:
                     out = synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path)
                     st.session_state.generated_code = out['code'].strip()
-                    st.session_state.conversation.append({'role':'user','content':ui,'type':'text'})
-                    # st.session_state.conversation.append({'role':'assistant','content':out['prefix'],'type':'text'})
-                    st.session_state.conversation.append({'role':'assistant','content':st.session_state.generated_code,'type':'code'})
+                    st.session_state.conversation.append({'role':'user', 'content':ui, 'type':'text'})
+                    st.session_state.conversation.append({'role':'assistant', 'content':out['prefix'], 'type':'text'})
+                    st.session_state.conversation.append({'role':'assistant', 'content':st.session_state.generated_code, 'type':'code'})
                     execute_code()
                 except Exception as e:
                     st.error(f'Error generating code: {e}')
@@ -245,10 +242,11 @@ with col2:
                 st.image(BytesIO(base64.b64decode(b64)),caption=f'Figure {i+1}')
 
 st.subheader('Conversation History')
-for m in st.session_state.conversation:
-    if m['role']=='user': st.markdown(f"**You:** {m['content']}")
-    else:
-        if m.get('type')=='code':
-            st.markdown('**Assistant:** Generated code:')
-            with st.expander('Show code'): st.code(m['content'],language='python')
-        else: st.markdown(f"**Assistant:** {m['content']}")
+# Display chat messages from history on app rerun
+for message in st.session_state.conversation:
+    with st.chat_message(message["role"]):
+        if message.get('type') == 'code':
+            with st.expander('Show code'): 
+                st.code(message['content'],language='python')
+        else:
+            st.markdown(message["content"])
