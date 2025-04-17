@@ -67,7 +67,9 @@ def code_check(state: GraphState) -> GraphState:
             state["error"] = "no"
             print(output.text, 'output text')
         except Exception as e:
-            state["messages"].append(("assistant", f"Execution failed: {e}"))
+            print(f"Error during execution: {e}")
+        if "Traceback (most recent call last):" in output.text or "Error:" in output.text:
+            state["messages"].append(("assistant", f"Execution failed: {output.text}"))
             state["error"] = "yes"
     return state
 

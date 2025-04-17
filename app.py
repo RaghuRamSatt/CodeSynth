@@ -121,13 +121,12 @@ with st.sidebar:
 def execute_code():
     if not st.session_state.generated_code:
         return
-    res={"success":False,"output":"","error":"","figures":[],"execution_time":0}
-    buf=StringIO()
-    start_time=time.time()
+    res = {"success":False, "output":"", "error":"", "figures":[], "execution_time":0}
+    start_time = time.time()
     try:
         # prepare temp dirs and script
-        tmp_script=os.path.join("data","tmp_script.py")
-        tmp_fig_dir=os.path.join("data","tmp_figs")
+        tmp_script = os.path.join("data", "tmp_script.py")
+        tmp_fig_dir = os.path.join("data", "tmp_figs")
         if os.path.exists(tmp_fig_dir): shutil.rmtree(tmp_fig_dir)
         os.makedirs(tmp_fig_dir, exist_ok=True)
         # build script: monkey-patch, user code, save figs
@@ -155,14 +154,14 @@ def _cs(*a,**k):
     return fig,ax
 plt.subplots=_cs
 """
-#         save_block="""
-# # save figures to disk
-# import os
-# os.makedirs('/sandbox/figs',exist_ok=True)
-# for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
-# """
-        script_content = prelude + "\n" + st.session_state.generated_code + "\n"
-        # script_content = prelude + "\n" + st.session_state.generated_code + "\n" + save_block
+        save_block="""
+# save figures to disk
+import os
+os.makedirs('/sandbox/figs',exist_ok=True)
+for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
+"""
+        # script_content = prelude + "\n" + st.session_state.generated_code + "\n"
+        script_content = prelude + "\n" + st.session_state.generated_code + "\n" + save_block
         with open(tmp_script,'w') as f: f.write(script_content)
         # run in sandbox
         with SandboxSession(lang='python', keep_template=True) as sess:
@@ -171,27 +170,25 @@ plt.subplots=_cs
             sess.copy_to_runtime(tmp_script, '/sandbox/tmp_script.py')
             # execute
             result = sess.execute_command('python /sandbox/tmp_script.py')
-            out = getattr(result,'text','')
+            out = getattr(result, 'text', '')
             # collect figures
-            # ls = sess.execute_command('ls -al /sandbox')
-            # print(ls, ls.text)
-            # ls = sess.execute_command('ls /sandbox/figs')
-            # print(ls, ls.text)
-            # names = ls.text.strip().split() if ls.text else []
-            figs=[]
-            # for fn in names:
-            #     remote=f'/sandbox/figs/{fn}'
-            #     local=os.path.join(tmp_fig_dir,fn)
-            #     sess.copy_from_runtime(remote, local)
-            #     with open(local,'rb') as im: figs.append(base64.b64encode(im.read()).decode('utf-8'))
+            ls = sess.execute_command('ls /sandbox/figs')
+            print(ls, ls.text)
+            names = ls.text.strip().split() if ls.text else []
+            figs = []
+            for fn in names:
+                remote = f'/sandbox/figs/{fn}'
+                local = os.path.join(tmp_fig_dir,fn)
+                sess.copy_from_runtime(remote, local)
+                with open(local,'rb') as im: figs.append(base64.b64encode(im.read()).decode('utf-8'))
         # populate results
-        res['success']=True
-        res['output']=out
-        res['figures']=figs
+        res['success'] = True
+        res['output'] = out
+        res['figures'] = figs
     except Exception as e:
-        res['error']=f"{type(e).__name__}: {e}"
+        res['error'] = f"{type(e).__name__}: {e}"
     finally:
-        res['execution_time']=time.time()-start_time
+        res['execution_time'] = time.time()-start_time
         st.session_state.code_execution_results=res
 
 # Main layout
@@ -201,18 +198,19 @@ with col1:
         st.subheader('Dataset Preview')
         st.dataframe(st.session_state.dataset.head(),use_container_width=True)
         st.subheader('Ask About Your Data')
-        ui=st.text_area('Enter your query:',height=100)
-        b1,b2,b3,b4=st.columns(4)
-        with b1: gen=st.button('Generate Code')
-        with b2: run=st.button('Run Code',disabled=not st.session_state.generated_code)
-        with b3: save=st.button('Save Code',disabled=not st.session_state.generated_code)
-        with b4: new=st.button('New Query')
+        ui = st.text_area('Enter your query:',height=100)
+        b1, b2, b3, b4 = st.columns(4)
+        with b1: gen = st.button('Generate Code')
+        with b2: run = st.button('Run Code', disabled=not st.session_state.generated_code)
+        with b3: save = st.button('Save Code', disabled=not st.session_state.generated_code)
+        with b4: new = st.button('New Query')
         if gen and ui:
             with st.spinner('Generating code via LangGraph…'):
                 try:
-                    out=synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path)
-                    st.session_state.generated_code=out['code'].strip()
-                    st.session_state.conversation.append({'role':'assistant','content':out['prefix'],'type':'text'})
+                    out = synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path)
+                    st.session_state.generated_code = out['code'].strip()
+                    st.session_state.conversation.append({'role':'user','content':ui,'type':'text'})
+                    # st.session_state.conversation.append({'role':'assistant','content':out['prefix'],'type':'text'})
                     st.session_state.conversation.append({'role':'assistant','content':st.session_state.generated_code,'type':'code'})
                     execute_code()
                 except Exception as e:
