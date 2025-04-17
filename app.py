@@ -10,10 +10,13 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import anthropic
-from dotenv import load_dotenv
-from io import StringIO, BytesIO
 import matplotlib.pyplot as plt
 import seaborn as sns
+from dotenv import load_dotenv
+from io import StringIO, BytesIO
+from groq import Groq
+from openai import OpenAI
+from utils.get_api_response import fetch_api_response
 
 # Configure logging
 logging.basicConfig(
@@ -58,7 +61,7 @@ init_session_state()
 # App title and description
 st.title("Data Analysis LLM Agent")
 st.markdown("""
-This application uses Claude 3.5 to generate Python code for data analysis based on your natural language queries. 
+This application uses Generative AI models to generate Python code for data analysis based on your natural language queries. 
 Simply load a dataset, ask questions about your data, and get Python code and visualizations.
 """)
 
@@ -67,12 +70,15 @@ with st.sidebar:
     st.header("Configuration")
     
     # API key status
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    ai_options = ["Anthropic", "Open AI", "Llama", "Other"]
+    selected_ai_option = st.selectbox("Choose an AI Agent: ", ai_options)
+    ai_options_dict = {"Anthropic": "ANTHROPIC_API_KEY", "Open AI": "OPENAI_API_KEY", "Llama":"GROQ_API_KEY", "Other":"OTHER_API_KEY"}
+    api_key = os.getenv(ai_options_dict[selected_ai_option])
     if api_key:
-        st.success("Claude API Key: ✓ Connected")
+        st.success(f"{selected_ai_option} API Key: ✓ Connected")
     else:
-        st.error("Claude API Key: ✗ Missing")
-        st.info("Add ANTHROPIC_API_KEY to your .env file")
+        st.error(f"{selected_ai_option} API Key: ✗ Missing")
+        st.info(f"Add {ai_options_dict[selected_ai_option]} to your .env file")
     
     # Dataset upload
     st.subheader("Upload Dataset")
@@ -373,15 +379,23 @@ with main_col1:
         # Process user input when submit button is clicked
         if submit_button and user_input:
             try:
-                with st.spinner("Generating code with Claude 3.5..."):
+                with st.spinner(f"Generating code with {selected_ai_option}..."):
                     # Check for API key
-                    api_key = os.getenv("ANTHROPIC_API_KEY")
+                    # api_key = os.getenv("ANTHROPIC_API_KEY")
+                    api_key = os.getenv(ai_options_dict[selected_ai_option])
                     if not api_key:
-                        st.error("ANTHROPIC_API_KEY not found in environment variables.")
-                        logger.error("ANTHROPIC_API_KEY not found in environment variables.")
+                        st.error(f"{ai_options_dict[selected_ai_option]} not found in environment variables.")
+                        logger.error(f"{ai_options_dict[selected_ai_option]} not found in environment variables.")
                     else:
-                        # Initialize Anthropic client
-                        client = anthropic.Anthropic(api_key=api_key)
+                        # Initialize AI client
+                        if selected_ai_option == "Anthropic":
+                            client = anthropic.Anthropic(api_key=api_key)
+                        elif selected_ai_option == "Llama":
+                            client = Groq(api_key=api_key)
+                        elif selected_ai_option == "Open AI":
+                            client = OpenAI(api_key=api_key)
+                        elif selected_ai_option == "Other":
+                            client = Groq(api_key=api_key)
                         
                         # Format dataset info for prompt
                         dataset_info_text = f"""
@@ -428,17 +442,9 @@ with main_col1:
                         prompt_tokens = len(prompt) // 4  # Rough estimate
                         st.session_state.token_count["input"] += prompt_tokens
                         
-                        # Send request to Claude
+                        # Send request to the chosen API
                         start_time = time.time()
-                        response = client.messages.create(
-                            model="claude-3-5-sonnet-20240620",
-                            max_tokens=2000,
-                            temperature=0.2,
-                            messages=[{"role": "user", "content": prompt}]
-                        )
-                        
-                        # Process the response
-                        code_text = response.content[0].text
+                        code_text = fetch_api_response(ai_model=selected_ai_option, client=client, prompt=prompt)
                         
                         # Extract code if it's wrapped in markdown
                         if "```python" in code_text:
@@ -563,5 +569,5 @@ for message in st.session_state.conversation:
 # Footer
 st.markdown("---")
 st.markdown(
-    "Data Analysis LLM Agent - Using Claude 3.5 Sonnet for data science code generation"
+    f"Data Analysis LLM Agent - Using {selected_ai_option} for data science code generation"
 )
