@@ -73,7 +73,7 @@ with st.sidebar:
             df.to_csv(os.path.join(save_dir, 'data.csv'), index=False)
             if df is not None:
                 st.session_state.dataset = df
-                st.session_state.dataset_path = path
+                st.session_state.dataset_path = os.path.join(save_dir, 'data.csv')
                 st.session_state.dataset_info = {
                     "name": uploaded.name,
                     "shape": df.shape,
@@ -99,7 +99,6 @@ with st.sidebar:
                 ir = load_iris()
                 df = pd.DataFrame(ir.data, columns=ir.feature_names)
                 df['species'] = pd.Categorical.from_codes(ir.target, ir.target_names)
-                fname = "iris.csv"
             else:
                 df = sns.load_dataset(sel.lower())
             sd = os.path.join("data", "sample_datasets")
