@@ -75,8 +75,11 @@ class ClaudeAgent(BaseAgent):
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 messages=[{"role": "user", "content": full_prompt}],
-                system="You are a senior data scientist specialized in Python programming for data analysis. Your task is to generate high-quality, efficient, and well-documented Python code to address user questions about their dataset. Focus on creating code that is robust, handles errors gracefully, and produces insightful results. Always include explanatory comments. Only include code in your response, no additional explanations."
+                system="You are a senior data scientist specialized in Python programming for data analysis. Your task is to generate high-quality, efficient, and well-documented Python code to address user questions about their dataset. Focus on creating code that is robust, handles errors gracefully, and produces insightful results. Always include explanatory comments. Only include code in your response, no additional explanations. Always use the variable 'dataset_path' to load data with pd.read_csv(dataset_path)."
             )
+            
+            self.last_prompt_tokens = response.usage.input_tokens
+            self.last_completion_tokens = response.usage.output_tokens
             
             # Extract code from the response
             code = self._extract_code_from_response(response.content)
