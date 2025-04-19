@@ -157,7 +157,6 @@ import os
 os.makedirs('/sandbox/figs',exist_ok=True)
 for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
 """
-        # script_content = prelude + "\n" + st.session_state.generated_code + "\n"
         script_content = prelude + "\n" + st.session_state.generated_code + "\n" + save_block
         with open(tmp_script,'w') as f: f.write(script_content)
         # run in sandbox
@@ -190,28 +189,44 @@ for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
 # Main layout
 col1, col2 = st.columns([3,2])
 with col1:
+    
     if st.session_state.dataset is not None:
+    
         st.subheader('Dataset Preview')
         st.dataframe(st.session_state.dataset.head(),use_container_width=True)
-        st.subheader('Ask About Your Data')
-        ui = st.text_area('Enter your query:',height=100)
-        b1, b2, b3, b4 = st.columns(4)
-        with b1: gen = st.button('Generate Code')
+        
+        st.subheader('Conversation')
+    
+        # Display chat messages from history on app rerun
+        for message in st.session_state.conversation:
+            with st.chat_message(message["role"]):
+                if message['role'] == 'user':
+                    st.markdown(message["content"])
+                else:
+                    st.markdown(message["content"]['prefix'])
+                    with st.expander('Show code'):
+                        st.code(message['content']['code'],language='python')
+                    
+        
+        ui = st.chat_input("Ask about your data")
+        b2, b3, b4 = st.columns(3)
         with b2: run = st.button('Run Code', disabled=not st.session_state.generated_code)
         with b3: save = st.button('Save Code', disabled=not st.session_state.generated_code)
         with b4: new = st.button('New Query')
-        if gen and ui:
+        if ui:
             with st.spinner('Generating code via LangGraph…'):
                 try:
                     out = synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path)
                     st.session_state.generated_code = out['code'].strip()
                     st.session_state.conversation.append({'role':'user', 'content':ui, 'type':'text'})
-                    st.session_state.conversation.append({'role':'assistant', 'content':out['prefix'], 'type':'text'})
-                    st.session_state.conversation.append({'role':'assistant', 'content':st.session_state.generated_code, 'type':'code'})
+                    st.session_state.conversation.append({'role':'assistant', 'content':{'prefix': out['prefix'], 
+                                                                                         'code':st.session_state.generated_code
+                                                                                         }, 'type':'text'})
                     execute_code()
+                    st.rerun()
                 except Exception as e:
                     st.error(f'Error generating code: {e}')
-                    logger.error('Synthesis failed',exc_info=True)
+                    logger.error('Synthesis failed', exc_info=True)
         if run: execute_code()
         if save:
             dld=os.path.join('data','downloads'); os.makedirs(dld,exist_ok=True)
@@ -223,6 +238,9 @@ with col1:
         if new: st.session_state.generated_code=st.session_state.code_execution_results=None
     else:
         st.info('Please load a dataset first.')
+
+    
+    
 with col2:
     st.subheader('Generated Code')
     if st.session_state.generated_code: st.code(st.session_state.generated_code,language='python')
@@ -239,13 +257,3 @@ with col2:
             st.subheader('Visualizations')
             for i,b64 in enumerate(r['figures']): 
                 st.image(BytesIO(base64.b64decode(b64)),caption=f'Figure {i+1}')
-
-st.subheader('Conversation History')
-# Display chat messages from history on app rerun
-for message in st.session_state.conversation:
-    with st.chat_message(message["role"]):
-        if message.get('type') == 'code':
-            with st.expander('Show code'): 
-                st.code(message['content'],language='python')
-        else:
-            st.markdown(message["content"])
