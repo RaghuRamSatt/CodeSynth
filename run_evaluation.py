@@ -11,6 +11,9 @@ import pandas as pd
 
 from agents.claude_agent import ClaudeAgent
 from agents.base_agent import BaseAgent
+from agents.groq_agent import GroqAgent
+from agents.openai_agent import OpenAIAgent
+from agents.opensource_agent import OpenSourceAgent
 from evaluation.evaluator import ModelEvaluator
 from evaluation.test_suite import TestSuite
 from evaluation.ds1000_evaluator import DS1000Evaluator
@@ -20,6 +23,26 @@ from evaluation.ds1000_evaluator import DS1000Evaluator
 logging.basicConfig(level=logging.INFO, 
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# def get_available_agents():
+#     """Get dictionary of available agent instances."""
+#     agents = {}
+    
+#     # Try to initialize Claude agent
+#     claude_agent = ClaudeAgent()
+#     if claude_agent.initialize():
+#         agents["claude"] = claude_agent
+#         logger.info("Claude agent initialized successfully")
+#     else:
+#         logger.warning("Failed to initialize Claude agent")
+    
+#     # Add other agents 
+#     # openai_agent = OpenAIAgent()
+#     # if openai_agent.initialize():
+#     #     agents["openai"] = openai_agent
+    
+#     return agents
+
 
 def get_available_agents():
     """Get dictionary of available agent instances."""
@@ -33,13 +56,45 @@ def get_available_agents():
     else:
         logger.warning("Failed to initialize Claude agent")
     
-    # Add other agents as they are implemented
-    # For example:
-    # openai_agent = OpenAIAgent()
-    # if openai_agent.initialize():
-    #     agents["openai"] = openai_agent
+    # Initialize OpenAI agent
+    try:
+        from agents.openai_agent import OpenAIAgent
+        openai_agent = OpenAIAgent()
+        if openai_agent.initialize():
+            # Explicit name that matches command line parameter
+            agents["openai-gpt4.1"] = openai_agent
+            logger.info(f"OpenAI agent initialized successfully with model: {openai_agent.model_name}")
+        else:
+            logger.warning("Failed to initialize OpenAI agent")
+    except Exception as e:
+        logger.warning(f"Failed to import or initialize OpenAI agent: {e}")
+    
+    # Initialize Groq agents with different models
+    try:
+        from agents.groq_agent import GroqAgent
+        
+        # Llama 3.3 model
+        llama_agent = GroqAgent()
+        llama_agent.model_name = "llama-3.3-70b-versatile"
+        if llama_agent.initialize():
+            agents["groq-llama"] = llama_agent
+            logger.info("Groq Llama agent initialized successfully")
+        else:
+            logger.warning("Failed to initialize Groq Llama agent")
+            
+        # Gemma 2 model
+        gemma_agent = GroqAgent()
+        gemma_agent.model_name = "gemma2-9b-it"
+        if gemma_agent.initialize():
+            agents["groq-gemma"] = gemma_agent
+            logger.info("Groq Gemma agent initialized successfully")
+        else:
+            logger.warning("Failed to initialize Groq Gemma agent")
+    except Exception as e:
+        logger.warning(f"Failed to import or initialize Groq agents: {e}")
     
     return agents
+
 
 def run_evaluation(args):
     """Run the evaluation based on command line arguments."""

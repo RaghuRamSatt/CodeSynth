@@ -122,6 +122,8 @@ class ModelEvaluator:
                 "sample": dataset.head(5).to_string()
             }
             
+            logger.info(f"Processing test case: {test_case['query']}")
+
             # Generate code
             start_time = time.time()
             code = agent.generate_code(test_case["query"], dataset_info)
@@ -134,6 +136,9 @@ class ModelEvaluator:
             total_prompt_tokens += prompt_tokens
             total_completion_tokens += completion_tokens
             
+            logger.info(f"Generated code for test case {i+1}, moving to evaluation")
+
+
             # Evaluate the generated code
             eval_results = self.evaluator.evaluate(
                 code=code,
@@ -152,6 +157,8 @@ class ModelEvaluator:
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens
             }
+            
+            logger.info(f"Completed evaluation of test case {i+1}/{len(test_cases)}")
             
             results["test_cases"].append(test_result)
             
@@ -217,6 +224,146 @@ class ModelEvaluator:
             
         return comparative_results
         
+    # def generate_comparison_plots(self, comparative_results, output_dir="evaluation/plots"):
+    #     """
+    #     Generate comparison plots for multiple models.
+        
+    #     Args:
+    #         comparative_results: Results from compare_models
+    #         output_dir: Directory to save plots
+            
+    #     Returns:
+    #         List of generated plot filenames
+    #     """
+    #     os.makedirs(output_dir, exist_ok=True)
+    #     plot_files = []
+        
+    #     # Extract model names and scores
+    #     models = list(comparative_results["model_results"].keys())
+    #     avg_scores = [comparative_results["model_results"][model]["overall_metrics"]["avg_score"] 
+    #                  for model in models]
+        
+    #     # 1. Overall score comparison
+    #     plt.figure(figsize=(10, 6))
+    #     sns.barplot(x=models, y=avg_scores)
+    #     plt.title("Average Score Comparison")
+    #     plt.ylabel("Average Score")
+    #     plt.xlabel("Model")
+    #     plt.ylim(0, 1)
+    #     plt.tight_layout()
+        
+    #     score_plot = os.path.join(output_dir, "overall_score_comparison.png")
+    #     plt.savefig(score_plot)
+    #     plot_files.append(score_plot)
+    #     plt.close()
+        
+    #     # 2. Token efficiency comparison
+    #     # token_efficiencies = []
+        
+    #     # for model in models:
+    #     #     metrics = comparative_results["model_results"][model]["overall_metrics"]
+    #     #     score = metrics["avg_score"]
+    #     #     total_tokens = metrics["total_tokens"]
+    #     #     efficiency = score / max(total_tokens, 1) * 1000
+    #     #     token_efficiencies.append(efficiency)
+
+    #     token_efficiencies = []
+
+    #     for model in models:
+    #         metrics = comparative_results["model_results"][model]["overall_metrics"]
+    #         score = metrics["avg_score"]
+    #         total_tokens = metrics.get("total_tokens", 0)
+            
+    #         # Debug output to help identify the issue
+    #         logger.info(f"Model: {model}, Score: {score}, Total tokens: {total_tokens}")
+            
+    #         # Check if total_tokens is greater than zero before calculating efficiency
+    #         if total_tokens > 0:
+    #             efficiency = score / total_tokens * 1000
+    #         else:
+    #             # Fallback: try to calculate from individual test cases if overall metrics are missing
+    #             test_cases = comparative_results["model_results"][model].get("test_cases", [])
+    #             total_tokens_from_cases = sum(case.get("prompt_tokens", 0) + case.get("completion_tokens", 0) 
+    #                                         for case in test_cases)
+                
+    #             if total_tokens_from_cases > 0:
+    #                 efficiency = score / total_tokens_from_cases * 1000
+    #                 logger.info(f"Calculated token efficiency from test cases for {model}: {efficiency}")
+    #             else:
+    #                 efficiency = 0
+    #                 logger.warning(f"No token data available for {model}")
+                    
+    #         token_efficiencies.append(efficiency)
+            
+    #     plt.figure(figsize=(10, 6))
+    #     sns.barplot(x=models, y=token_efficiencies)
+    #     plt.title("Token Efficiency Comparison")
+    #     plt.ylabel("Score per 1000 tokens")
+    #     plt.xlabel("Model")
+    #     plt.tight_layout()
+        
+    #     efficiency_plot = os.path.join(output_dir, "token_efficiency_comparison.png")
+    #     plt.savefig(efficiency_plot)
+    #     plot_files.append(efficiency_plot)
+    #     plt.close()
+        
+    #     # 3. Generation time comparison
+    #     generation_times = [comparative_results["model_results"][model]["overall_metrics"]["avg_generation_time"] 
+    #                       for model in models]
+                          
+    #     plt.figure(figsize=(10, 6))
+    #     sns.barplot(x=models, y=generation_times)
+    #     plt.title("Average Generation Time Comparison")
+    #     plt.ylabel("Time (seconds)")
+    #     plt.xlabel("Model")
+    #     plt.tight_layout()
+        
+    #     time_plot = os.path.join(output_dir, "generation_time_comparison.png")
+    #     plt.savefig(time_plot)
+    #     plot_files.append(time_plot)
+    #     plt.close()
+        
+    #     # 4. Score by category (heatmap)
+    #     # Organize scores by category for each model
+    #     categories = set()
+    #     for test_case in comparative_results["test_cases"]:
+    #         categories.add(test_case["category"])
+            
+    #     categories = list(categories)
+    #     category_scores = {model: {category: [] for category in categories} for model in models}
+        
+    #     # Collect scores by category
+    #     for model in models:
+    #         for test_result in comparative_results["model_results"][model]["test_cases"]:
+    #             category = test_result["test_case"]["category"]
+    #             score = test_result["evaluation"]["overall_score"]
+    #             category_scores[model][category].append(score)
+                
+    #     # Calculate average scores by category
+    #     avg_category_scores = {model: {category: sum(scores) / max(len(scores), 1) 
+    #                                  for category, scores in model_cats.items()}
+    #                          for model, model_cats in category_scores.items()}
+                             
+    #     # Create score matrix for heatmap
+    #     score_matrix = []
+    #     for category in categories:
+    #         category_row = [avg_category_scores[model][category] for model in models]
+    #         score_matrix.append(category_row)
+            
+    #     plt.figure(figsize=(12, 8))
+    #     ax = sns.heatmap(score_matrix, annot=True, fmt=".2f", cmap="YlGnBu",
+    #                    xticklabels=models, yticklabels=categories, vmin=0, vmax=1)
+    #     plt.title("Score by Category")
+    #     plt.tight_layout()
+        
+    #     category_plot = os.path.join(output_dir, "category_score_comparison.png")
+    #     plt.savefig(category_plot)
+    #     plot_files.append(category_plot)
+    #     plt.close()
+        
+    #     return plot_files
+
+
     def generate_comparison_plots(self, comparative_results, output_dir="evaluation/plots"):
         """
         Generate comparison plots for multiple models.
@@ -234,7 +381,7 @@ class ModelEvaluator:
         # Extract model names and scores
         models = list(comparative_results["model_results"].keys())
         avg_scores = [comparative_results["model_results"][model]["overall_metrics"]["avg_score"] 
-                     for model in models]
+                    for model in models]
         
         # 1. Overall score comparison
         plt.figure(figsize=(10, 6))
@@ -250,32 +397,10 @@ class ModelEvaluator:
         plot_files.append(score_plot)
         plt.close()
         
-        # 2. Token efficiency comparison
-        token_efficiencies = []
-        
-        for model in models:
-            metrics = comparative_results["model_results"][model]["overall_metrics"]
-            score = metrics["avg_score"]
-            total_tokens = metrics["total_tokens"]
-            efficiency = score / max(total_tokens, 1) * 1000
-            token_efficiencies.append(efficiency)
-            
-        plt.figure(figsize=(10, 6))
-        sns.barplot(x=models, y=token_efficiencies)
-        plt.title("Token Efficiency Comparison")
-        plt.ylabel("Score per 1000 tokens")
-        plt.xlabel("Model")
-        plt.tight_layout()
-        
-        efficiency_plot = os.path.join(output_dir, "token_efficiency_comparison.png")
-        plt.savefig(efficiency_plot)
-        plot_files.append(efficiency_plot)
-        plt.close()
-        
-        # 3. Generation time comparison
+        # 2. Generation time comparison (keeping this as the second plot)
         generation_times = [comparative_results["model_results"][model]["overall_metrics"]["avg_generation_time"] 
-                          for model in models]
-                          
+                        for model in models]
+                        
         plt.figure(figsize=(10, 6))
         sns.barplot(x=models, y=generation_times)
         plt.title("Average Generation Time Comparison")
@@ -288,7 +413,7 @@ class ModelEvaluator:
         plot_files.append(time_plot)
         plt.close()
         
-        # 4. Score by category (heatmap)
+        # 3. Score by category (heatmap)
         # Organize scores by category for each model
         categories = set()
         for test_case in comparative_results["test_cases"]:
@@ -306,9 +431,9 @@ class ModelEvaluator:
                 
         # Calculate average scores by category
         avg_category_scores = {model: {category: sum(scores) / max(len(scores), 1) 
-                                     for category, scores in model_cats.items()}
-                             for model, model_cats in category_scores.items()}
-                             
+                                    for category, scores in model_cats.items()}
+                            for model, model_cats in category_scores.items()}
+                            
         # Create score matrix for heatmap
         score_matrix = []
         for category in categories:
@@ -317,7 +442,7 @@ class ModelEvaluator:
             
         plt.figure(figsize=(12, 8))
         ax = sns.heatmap(score_matrix, annot=True, fmt=".2f", cmap="YlGnBu",
-                       xticklabels=models, yticklabels=categories, vmin=0, vmax=1)
+                    xticklabels=models, yticklabels=categories, vmin=0, vmax=1)
         plt.title("Score by Category")
         plt.tight_layout()
         

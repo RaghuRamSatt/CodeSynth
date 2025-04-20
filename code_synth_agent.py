@@ -7,13 +7,15 @@ from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain_groq.chat_models import ChatGroq
+from langchain_anthropic.chat_models import ChatAnthropic
 from langgraph.checkpoint.memory import MemorySaver
 from llm_sandbox import SandboxSession
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
-api_key = os.getenv("GROQ_API_KEY")
+# api_key = os.getenv("GROQ_API_KEY")
+api_key = os.getenv("ANTHROPIC_API_KEY")
 
 # Define graph state
 class GraphState(TypedDict):
@@ -46,7 +48,15 @@ Here is the user question:
 
 def generate(state: GraphState) -> GraphState:
 
-    solution = code_gen_chain.invoke({"messages": state["messages"]})
+    try:
+        print(f"Generation - {state['iterations']}")
+        solution = code_gen_chain.invoke({"messages": state["messages"]})
+    except Exception as e:
+        state["messages"].append(("user", "Parsing error! Please ensure you use the CODE tool."))
+        state["error"] = "yes"
+        state["iterations"] += 1
+        print(f"Error during code generation: {e}")
+        return state
     
     if solution == 'parsing_error':
         state["messages"].append(("user", "Parsing error! Please ensure you use the CODE tool."))
@@ -57,6 +67,8 @@ def generate(state: GraphState) -> GraphState:
     else:
         state["messages"].append(("assistant", f"{solution['parsed'].prefix}\nCode: {solution['parsed'].code}"))
         state["generation"] = solution['parsed']
+        state["error"] = "no"
+        
     state["iterations"] += 1
     
     return state
@@ -101,14 +113,25 @@ def check_groq_output(tool_output):
     return tool_output
 
 def decide_finish(state: GraphState) -> str:
-    return 'end' if state["error"] == "no" or state["iterations"] >= 3 else "generate"
+    if state['error'] == "no":
+        return 'end'
+    elif state['error'] == "yes" and state["iterations"] < 3:
+        return 'generate'
+    else:
+        return 'end'
 
 def check_parsing_error(state: GraphState) -> str:
-    return 'generate' if state["error"] == "yes" else "check_code"
+    if state['error'] == "no":
+        return 'check_code'
+    elif state['error'] == "yes" and state["iterations"] < 3:
+        return 'generate'
+    else:
+        return 'check_code'
 
 # Build graph
 workflow = StateGraph(GraphState)
-llm = ChatGroq(temperature=0.1, api_key=api_key, model="gemma2-9b-it")
+# llm = ChatGroq(temperature=0.1, api_key=api_key, model="gemma2-9b-it")
+llm = ChatAnthropic(temperature=0.1, model="claude-3-5-sonnet-20240620", api_key=api_key)
 structured_llm = llm.with_structured_output(CodeOutput, include_raw=True)
 code_gen_chain = code_gen_prompt | structured_llm | check_groq_output
 
