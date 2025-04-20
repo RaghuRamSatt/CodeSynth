@@ -103,7 +103,7 @@ with st.sidebar:
 
     agent_type = st.selectbox(
     "Choose the agent to generate code:",
-    ["claude", "groq-llama", "groq-gemma", "opensource"],
+    ["claude", "groq-llama", "groq-gemma", "openai-gpt4.1", "openai-o4mini", "opensource"],
     index=0,
     help="Select model for code generation"
     )
@@ -127,6 +127,14 @@ with st.sidebar:
         else:
             st.error("Groq API Key: ✗ Missing")
             st.info("Add GROQ_API_KEY to your .env file")
+    elif agent_type.startswith("openai"):
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            st.success("Open AI API Key: ✓ Connected")
+        else:
+            st.error("Open AI API Key: ✗ Missing")
+            st.info("Add OPENAI_API_KEY to your .env file")
+        
     else:
         # For opensource model
         model_path = os.getenv("PHI3_MODEL_PATH")

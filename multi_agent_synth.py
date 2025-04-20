@@ -21,6 +21,7 @@ from agents.base_agent import BaseAgent
 from agents.claude_agent import ClaudeAgent
 from agents.opensource_agent import OpenSourceAgent
 from agents.groq_agent import GroqAgent
+from agents.openai_agent import OpenAIAgent
 
 # Configure logging
 logging.basicConfig(
@@ -90,6 +91,13 @@ def get_agent(agent_type: str) -> BaseAgent:
             agent.model_name = "llama-3.3-70b-versatile"
         elif agent_type == "groq-gemma":
             agent.model_name = "gemma2-9b-it" 
+    elif agent_type.startswith("openai"):
+        # Set the model based on selection
+        if agent_type == "openai-gpt4.1":
+            model_name = "gpt-4.1"
+        elif agent_type == "openai-o4mini":
+            model_name = "o4-mini" 
+        agent = OpenAIAgent(model_name=model_name)
     elif agent_type == "opensource":
         agent = OpenSourceAgent()
     else:
