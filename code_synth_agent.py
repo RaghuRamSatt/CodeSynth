@@ -25,8 +25,8 @@ class GraphState(TypedDict):
 
 # Data model for structured output
 class CodeOutput(BaseModel):
-    prefix: str = Field(description="Description of approach")
-    code: str = Field(description="Executable Python code")
+    prefix: str = Field(description="Description of approach to the problem.")
+    code: str = Field(description="Executable Python code. Do NOT include ```python``` or any other language tags.")
 
 # Prompt template
 code_gen_prompt = ChatPromptTemplate.from_messages([
@@ -45,13 +45,20 @@ Here is the user question:
 # Helper functions for LangGraph nodes
 
 def generate(state: GraphState) -> GraphState:
-    if state["error"] == "yes":
-        state["messages"].append(("user", "Please retry, ensuring you use the CODE tool with a prefix and code."))
+
     solution = code_gen_chain.invoke({"messages": state["messages"]})
-    print(solution['parsed'], 'solution object')
-    state["messages"].append(("assistant", f"{solution['parsed'].prefix}\nCode: {solution['parsed'].code}"))
-    state["generation"] = solution['parsed']
+    
+    if solution == 'parsing_error':
+        state["messages"].append(("user", "Parsing error! Please ensure you use the CODE tool."))
+        state["error"] = "yes"
+    elif solution == 'tool_not_invoked':
+        state["messages"].append(("user", "Tool not invoked! Please ensure you use the CODE tool."))
+        state["error"] = "yes"
+    else:
+        state["messages"].append(("assistant", f"{solution['parsed'].prefix}\nCode: {solution['parsed'].code}"))
+        state["generation"] = solution['parsed']
     state["iterations"] += 1
+    
     return state
 
 
@@ -59,6 +66,7 @@ def code_check(state: GraphState) -> GraphState:
     code_text = state["generation"].code
     ds_path = state["dataset_path"]
     print('ds_path is - ', ds_path)
+    print('code_text is - ', code_text)
     with SandboxSession(lang="python", keep_template=True) as session:
         # copy dataset into sandbox
         session.copy_to_runtime(ds_path, "/sandbox/data.csv")
@@ -74,29 +82,42 @@ def code_check(state: GraphState) -> GraphState:
     return state
 
 
-def reflect(state: GraphState) -> GraphState:
-    # optional reflection
-    solution = code_gen_chain.invoke({"messages": state["messages"]})
-    state["messages"].append(("assistant", f"Reflection: {solution}"))
-    return state
+def check_groq_output(tool_output):
+    """Check for parse error or failure to call the tool"""
 
+    # Error with parsing
+    if tool_output["parsing_error"]:
+        # Report back output and parsing errors
+        print(f"Error parsing your output! Be sure to invoke the tool. Output: {raw_output}. \n Parse error: {error}")
+        raw_output = str(tool_output["raw"].content)
+        error = tool_output["parsing_error"]
+        return "parsing_error"
+
+    # Tool was not invoked
+    elif not tool_output["parsed"]:
+        print("Failed to invoke tool!")
+        return "tool_not_invoked"
+
+    return tool_output
 
 def decide_finish(state: GraphState) -> str:
     return 'end' if state["error"] == "no" or state["iterations"] >= 3 else "generate"
+
+def check_parsing_error(state: GraphState) -> str:
+    return 'generate' if state["error"] == "yes" else "check_code"
 
 # Build graph
 workflow = StateGraph(GraphState)
 llm = ChatGroq(temperature=0.1, api_key=api_key, model="gemma2-9b-it")
 structured_llm = llm.with_structured_output(CodeOutput, include_raw=True)
-code_gen_chain = code_gen_prompt | structured_llm
+code_gen_chain = code_gen_prompt | structured_llm | check_groq_output
 
 workflow.add_node("generate", generate)
 workflow.add_node("check_code", code_check)
-workflow.add_node("reflect", reflect)
+
 workflow.add_edge(START, "generate")
-workflow.add_edge("generate", "check_code")
+workflow.add_conditional_edges("generate", check_parsing_error, {"check_code": "check_code", "generate": "generate"})
 workflow.add_conditional_edges("check_code", decide_finish, {"end": END, "generate": "generate"})
-workflow.add_edge("reflect", "generate")
 
 thread_cfg = {"configurable": {"thread_id": uuid.uuid4()}}
 checkpointer = MemorySaver()
@@ -114,16 +135,16 @@ def synthesize(user_query: str, dataset_info: Dict, dataset_path: str) -> Dict:
     info += f"\nSample data:\n{dataset_info['sample']}"
 
     # Assemble prompt
-    prompt = (
-        f"Generate Python code for the following data analysis task:\n\n"
-        f"User query: {user_query}\n\n"
-        f"Dataset information:\n{info}\n\n"
-        "The dataset is available at '/sandbox/data.csv'. "
-        "Ensure your code reads it, e.g.: df = pd.read_csv('/sandbox/data.csv')\n"
-        "IMPORTANT: Provide well-commented code, use pandas, numpy, matplotlib, seaborn, scikit-learn, "
-        "and use the CODE tool with a prefix and code block only."
-    )
-
+    prompt = f"""
+    Generate Python code for the following data analysis task:\n\n
+    User query: {user_query}\n\n
+    Dataset information:\n{info}\n\n
+    The dataset is available at '/sandbox/data.csv'. 
+    Ensure your code reads it, e.g.: df = pd.read_csv('/sandbox/data.csv')\n
+    IMPORTANT: Provide well-commented code, use pandas, numpy, matplotlib, seaborn, scikit-learn, 
+    and use the CODE tool with a prefix and code block only.
+    """
+    
     # Initialize graph state
     initial_state: GraphState = {
         "messages": [("user", prompt)],
@@ -132,6 +153,7 @@ def synthesize(user_query: str, dataset_info: Dict, dataset_path: str) -> Dict:
         "dataset_path": dataset_path,
         "generation": {}
     }
+    
     # Invoke graph
     final_state = graph.invoke(initial_state, config=thread_cfg)
     sol = final_state['generation']

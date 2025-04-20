@@ -49,7 +49,7 @@ Only provide the improved code, no explanations or conversation.
 """
 }
 
-# Templates for Claude 3.5/3.7
+# Templates for Claude 3.5
 CLAUDE_PROMPT_TEMPLATES = {
     "code_generation": """
 <task>
@@ -68,9 +68,26 @@ Generate Python code to analyze a dataset based on a user query
 Create Python code that effectively addresses the user's query. The code should:
 1. Use pandas, numpy, and appropriate visualization libraries
 2. Include clear comments explaining the approach and key steps
-3. Handle potential errors like missing data or invalid types
-4. Produce informative visualizations where appropriate
-5. Return meaningful insights from the analysis
+3. Handle potential errors like missing data or invalid types using try/except blocks
+4. Create dynamic visualizations with proper labels and titles
+5. DO NOT use plt.style.use('seaborn') - use default styles
+6. When creating figures, use proper subplot layouts based on the actual data
+7. Create dynamic layouts based on actual number of columns (use len() when creating subplot layouts)
+8. Add error handling around visualization code
+9. IMPORTANT: For handling data files:
+   - The dataset is ALREADY LOADED as the 'df' variable - use this directly
+   - If you must reload the dataset, ALWAYS use encoding detection:
+     ```
+     # Detect encoding
+     import chardet
+     with open(dataset_path, 'rb') as f:
+         result = chardet.detect(f.read())
+     encoding = result['encoding']
+     
+     # Load with detected encoding
+     df = pd.read_csv(dataset_path, encoding=encoding)
+     ```
+10. Instead of pmdarima, use statsmodels' ARIMA implementation for time series forecasting.
 
 Provide only the Python code with no additional explanations or conversation.
 </instructions>

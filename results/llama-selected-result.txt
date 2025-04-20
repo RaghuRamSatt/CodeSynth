@@ -1,0 +1,19 @@
+       score
+count  60.00
+mean    0.45
+
+           score     
+           count mean
+library              
+Matplotlib    15  0.8
+Numpy         15  0.2
+Pandas        15  0.4
+Scipy         15  0.4
+
+                  score       
+                  count   mean
+perturbation_type             
+Difficult-Rewrite     7  0.000
+Origin               32  0.562
+Semantic             19  0.474
+Surface               2  0.000
