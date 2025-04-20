@@ -1,579 +1,320 @@
 """
-Enhanced Streamlit app for data analysis with multi-agent LangGraph framework
+Enhanced Streamlit app for data analysis with LangGraph synthesis
+(using llm-sandbox for code execution)
 """
 
 import os
-import logging
+import shutil
 import time
 import base64
 import pandas as pd
-import numpy as np
 import streamlit as st
-import anthropic
 from dotenv import load_dotenv
 from io import StringIO, BytesIO
-import matplotlib.pyplot as plt
 import seaborn as sns
+from llm_sandbox import SandboxSession
 
-from multi_agent_synth import synthesize as multi_agent_synthesize
+from code_synth_agent import synthesize
+
+import json
+from datetime import datetime
+
+CONVO_DIR = os.path.join("data", "conversations")
+os.makedirs(CONVO_DIR, exist_ok=True)
+
+def save_conversation_to_file():
+    if not st.session_state.conversation:
+        return
+
+    # Use existing session filename if it exists
+    if st.session_state.conversation_filename is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        st.session_state.conversation_filename = f"session_{timestamp}.json"
+
+    path = os.path.join(CONVO_DIR, st.session_state.conversation_filename)
+    with open(path, 'w') as f:
+        json.dump(st.session_state.conversation, f, indent=2)
 
 # Configure logging
+import logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables
+# Load environment
 load_dotenv()
+st.set_page_config(page_title="Data Analysis LLM Agent", page_icon="📊", layout="wide")
 
-# Set page title
-st.set_page_config(
-    page_title="Data Analysis LLM Agent",
-    page_icon="📊",
-    layout="wide"
-)
+# Session state init
+if 'conversation' not in st.session_state: st.session_state.conversation = []
+if 'dataset' not in st.session_state: st.session_state.dataset = None
+if 'dataset_info' not in st.session_state: st.session_state.dataset_info = {}
+if 'dataset_path' not in st.session_state: st.session_state.dataset_path = None
+if 'generated_code' not in st.session_state: st.session_state.generated_code = ""
+if 'code_execution_results' not in st.session_state: st.session_state.code_execution_results = None
+if 'conversation_filename' not in st.session_state: st.session_state.conversation_filename = None
 
-# Initialize session state
-def init_session_state():
-    """Initialize session state variables if they don't exist."""
-    if 'conversation' not in st.session_state:
-        st.session_state.conversation = []
-    if 'dataset' not in st.session_state:
-        st.session_state.dataset = None
-    if 'dataset_info' not in st.session_state:
-        st.session_state.dataset_info = {}
-    if 'dataset_path' not in st.session_state:
-        st.session_state.dataset_path = None
-    if 'generated_code' not in st.session_state:
-        st.session_state.generated_code = ""
-    if 'code_execution_results' not in st.session_state:
-        st.session_state.code_execution_results = None
-    if 'token_count' not in st.session_state:
-        st.session_state.token_count = {"input": 0, "output": 0}
-    if 'agent_type' not in st.session_state:
-        st.session_state.agent_type = "claude"
-
-init_session_state()
-
-# App title and description
+# Title & description
 st.title("Data Analysis LLM Agent")
 st.markdown("""
-This application uses LangGraph with multiple LLM backends to generate Python code for data analysis.
-Choose your preferred model, load a dataset, ask questions, and get Python code with visualizations.
+This application uses a LangGraph‑powered agent to generate Python code
+for data analysis. Code is executed inside an isolated sandbox to
+capture outputs and figures securely.
 """)
 
 # Sidebar
 with st.sidebar:
     st.header("Configuration")
-    
-    # Model selection
-    st.subheader("Select Agent")
-    # agent_type = st.selectbox(
-    #     "Choose the agent to generate code:",
-    #     ["claude", "opensource"],
-    #     index=0,
-    #     help="Claude agent uses Claude 3.5 Sonnet, opensource uses Phi-3 Mini"
-    # )
-
-    # # Store the selection in session state
-    # if st.session_state.agent_type != agent_type:
-    #     st.session_state.agent_type = agent_type
-    
-    # # API key status based on selected agent
-    # if agent_type == "claude":
-    #     api_key = os.getenv("ANTHROPIC_API_KEY")
-    #     if api_key:
-    #         st.success("Claude API Key: ✓ Connected")
-    #     else:
-    #         st.error("Claude API Key: ✗ Missing")
-    #         st.info("Add ANTHROPIC_API_KEY to your .env file")
-    # else:
-    #     # For opensource model
-    #     model_path = os.getenv("PHI3_MODEL_PATH")
-    #     model_endpoint = os.getenv("PHI3_ENDPOINT")
-    #     if model_path or model_endpoint:
-    #         st.success("Open-source model: ✓ Available")
-    #     else:
-    #         st.warning("Open-source model may not be properly configured")
-    #         st.info("Add PHI3_MODEL_PATH or PHI3_ENDPOINT to your .env file")
-
-    agent_type = st.selectbox(
-    "Choose the agent to generate code:",
-    ["claude", "groq-llama", "groq-gemma", "opensource"],
-    index=0,
-    help="Select model for code generation"
-    )
-
-    # Store the selection in session state
-    if st.session_state.agent_type != agent_type:
-        st.session_state.agent_type = agent_type
-
-    # API key status based on selected agent
-    if agent_type == "claude":
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if api_key:
-            st.success("Claude API Key: ✓ Connected")
-        else:
-            st.error("Claude API Key: ✗ Missing")
-            st.info("Add ANTHROPIC_API_KEY to your .env file")
-    elif agent_type.startswith("groq"):
-        api_key = os.getenv("GROQ_API_KEY")
-        if api_key:
-            st.success("Groq API Key: ✓ Connected")
-        else:
-            st.error("Groq API Key: ✗ Missing")
-            st.info("Add GROQ_API_KEY to your .env file")
+    api_key = os.getenv("GROQ_API_KEY")
+    if api_key:
+        st.success("LangGraph API Key: ✓ Connected")
     else:
-        # For opensource model
-        model_path = os.getenv("PHI3_MODEL_PATH")
-        model_endpoint = os.getenv("PHI3_ENDPOINT")
-        if model_path or model_endpoint:
-            st.success("Open-source model: ✓ Available")
-        else:
-            st.warning("Open-source model may not be properly configured")
-            st.info("Add PHI3_MODEL_PATH or PHI3_ENDPOINT to your .env file")
-    
-    # Dataset upload
+        st.error("LangGraph API Key: ✗ Missing")
+        st.info("Add GROQ_API_KEY to your .env file")
+    # Data upload
     st.subheader("Upload Dataset")
-    uploaded_file = st.file_uploader(
-        "Choose a CSV, Excel, or JSON file", 
-        type=["csv", "xlsx", "xls", "json"]
-    )
-    
-    if uploaded_file is not None:
+    uploaded = st.file_uploader("Choose a CSV/Excel/JSON file", type=["csv","xlsx","xls","json"])
+    if uploaded:
         try:
-            # Save the uploaded file
-            save_path = os.path.join("data/user_datasets", uploaded_file.name)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            
-            with open(save_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            
-            # Load the dataset
-            if uploaded_file.name.endswith('csv'):
-                df = pd.read_csv(uploaded_file)
-            elif uploaded_file.name.endswith(('xls', 'xlsx')):
-                df = pd.read_excel(uploaded_file)
-            elif uploaded_file.name.endswith('json'):
-                df = pd.read_json(uploaded_file)
+            save_dir = os.path.join("data", "user_datasets")
+            os.makedirs(save_dir, exist_ok=True)
+            path = os.path.join(save_dir, uploaded.name)
+            with open(path,'wb') as f: f.write(uploaded.getbuffer())
+            if uploaded.name.endswith('csv'):
+                df = pd.read_csv(path)
+            elif uploaded.name.endswith(('xls','xlsx')):
+                df = pd.read_excel(path)
+            elif uploaded.name.endswith('json'):
+                df = pd.read_json(path)
             else:
-                df = None
-                st.error("Unsupported file format")
-            
+                df = None; st.error("Unsupported format")
+            df.to_csv(os.path.join(save_dir, 'data.csv'), index=False)
             if df is not None:
                 st.session_state.dataset = df
-                st.session_state.dataset_path = save_path
-                
-                # Extract dataset information
+                st.session_state.dataset_path = os.path.join(save_dir, 'data.csv')
                 st.session_state.dataset_info = {
-                    "name": uploaded_file.name,
+                    "name": uploaded.name,
                     "shape": df.shape,
                     "columns": [
-                        {
-                            "name": col,
-                            "type": str(df[col].dtype),
-                            "description": "",
-                            "sample": str(df[col].iloc[0]) if len(df) > 0 else ""
-                        }
-                        for col in df.columns
+                        {"name":c,"type":str(df[c].dtype),"description":"","sample":str(df[c].iloc[0]) if not df.empty else ""}
+                        for c in df.columns
                     ],
                     "sample": df.head(5).to_string()
                 }
-                
-                st.success(f"Dataset loaded: {uploaded_file.name}")
-                st.write(f"Shape: {df.shape[0]} rows × {df.shape[1]} columns")
-                
+                st.success(f"Loaded: {uploaded.name}")
+                st.write(f"Shape: {df.shape[0]} rows × {df.shape[1]} cols")
         except Exception as e:
-            st.error(f"Error loading dataset: {str(e)}")
-    
-    # Sample dataset selection
+            st.error(f"Error loading dataset: {e}")
+    # Sample data
     st.subheader("Or Use Sample Dataset")
-    sample_datasets = ["Iris", "Diamonds", "Tips", "Planets"]
-    selected_sample = st.selectbox("Select a sample dataset:", ["None"] + sample_datasets)
-    
-    if selected_sample != "None":
+    choices=["None","Iris","Diamonds","Tips","Planets"]
+    sel=st.selectbox("Select sample:",choices)
+    if sel != "None":
         try:
-            if selected_sample == "Iris":
-                # Use sklearn's built-in iris dataset
+            fname = "data.csv"
+            if sel == "Iris":
                 from sklearn.datasets import load_iris
-                iris = load_iris()
-                df = pd.DataFrame(data=iris.data, columns=iris.feature_names)
-                df['species'] = pd.Categorical.from_codes(iris.target, iris.target_names)
-                filename = "iris.csv"
-            elif selected_sample == "Diamonds":
-                # Use seaborn's diamonds dataset
-                df = sns.load_dataset('diamonds')
-                filename = "diamonds.csv"
-            elif selected_sample == "Tips":
-                # Use seaborn's tips dataset
-                df = sns.load_dataset('tips')
-                filename = "tips.csv"
-            elif selected_sample == "Planets":
-                # Use seaborn's planets dataset
-                df = sns.load_dataset('planets')
-                filename = "planets.csv"
-            
-            # Save to file
-            os.makedirs("data/sample_datasets", exist_ok=True)
-            file_path = f"data/sample_datasets/{filename}"
-            df.to_csv(file_path, index=False)
-            
-            st.session_state.dataset = df
-            st.session_state.dataset_path = file_path
-            
-            # Extract dataset information
-            st.session_state.dataset_info = {
-                "name": selected_sample,
-                "shape": df.shape,
-                "columns": [
-                    {
-                        "name": col,
-                        "type": str(df[col].dtype),
-                        "description": "",
-                        "sample": str(df[col].iloc[0]) if len(df) > 0 else ""
-                    }
-                    for col in df.columns
-                ],
-                "sample": df.head(5).to_string()
+                ir = load_iris()
+                df = pd.DataFrame(ir.data, columns=ir.feature_names)
+                df['species'] = pd.Categorical.from_codes(ir.target, ir.target_names)
+            else:
+                df = sns.load_dataset(sel.lower())
+            sd = os.path.join("data", "sample_datasets")
+            os.makedirs(sd, exist_ok=True)
+            fp = os.path.join(sd, fname)
+            df.to_csv(fp, index=False)
+            st.session_state.dataset, st.session_state.dataset_path = df, fp
+            st.session_state.dataset_info={"name":sel,"shape":df.shape,
+                "columns":[{"name":c,"type":str(df[c].dtype),"description":"","sample":str(df[c].iloc[0]) if not df.empty else ""} for c in df.columns],
+                "sample":df.head(5).to_string()
             }
-            
-            st.success(f"Sample dataset loaded: {selected_sample}")
-            st.write(f"Shape: {df.shape[0]} rows × {df.shape[1]} columns")
-                
+            st.success(f"Loaded sample: {sel}"); st.write(f"Shape: {df.shape[0]}×{df.shape[1]}")
         except Exception as e:
-            st.error(f"Error loading sample dataset: {str(e)}")
-            logger.error(f"Error loading sample dataset: {e}", exc_info=True)
+            st.error(f"Error loading sample: {e}")
     
-    # Usage metrics
-    st.subheader("API Usage")
-    st.info(f"Input tokens: {st.session_state.token_count['input']}")
-    st.info(f"Output tokens: {st.session_state.token_count['output']}")
     
-    # Estimated cost (Claude 3.5 Sonnet pricing)
-    input_cost = st.session_state.token_count['input'] * 3.00 / 1_000_000
-    output_cost = st.session_state.token_count['output'] * 15.00 / 1_000_000
-    total_cost = input_cost + output_cost
+    st.subheader("Load Previous Conversation")
+
+    # Get list of saved sessions
+    session_files = sorted(
+        [f for f in os.listdir(CONVO_DIR) if f.endswith('.json')],
+        reverse=True
+    )
+
+    if session_files:
+        selected_file = st.selectbox("Choose session to load", session_files)
+
+        if st.button("Load Conversation"):
+            print(f"Loading conversation from {selected_file}")
+            try:
+                with open(os.path.join(CONVO_DIR, selected_file), 'r') as f:
+                    st.session_state.conversation = json.load(f)
+                    st.session_state.conversation_filename = selected_file
+                    st.success(f"Loaded: {selected_file}")
+                    st.rerun()
+                    print(f"loaded conversation - {st.session_state.conversation}")
+            except Exception as e:
+                st.error(f"Failed to load conversation: {e}")
+    else:
+        st.info("No previous sessions found.")
+
     
-    st.info(f"Estimated cost: ${total_cost:.4f}")
     
-    # Clear conversation button
+    
     if st.button("Clear Conversation"):
         st.session_state.conversation = []
         st.session_state.generated_code = ""
         st.session_state.code_execution_results = None
-        st.success("Conversation cleared!")
+        st.success("Cleared!")
 
-# Function to execute code
+# Execute code in sandbox
+
 def execute_code():
-    """Execute the generated code and capture results."""
     if not st.session_state.generated_code:
         return
-    
-    with st.spinner("Running code..."):
-        # Initialize result dictionary
-        result = {
-            "success": False,
-            "output": "",
-            "error": "",
-            "figures": [],
-            "execution_time": 0
-        }
-        
-        # Set up output capture
-        output_buffer = StringIO()
-        
-        # Prepare execution environment with all necessary imports and objects
-        exec_globals = {
-            "__builtins__": __builtins__,
-            "print": lambda *args, **kwargs: print(*args, file=output_buffer, **kwargs),
-            "df": st.session_state.dataset,
-            "pd": pd,
-            "np": np,
-            "plt": plt,
-            "sns": sns,
-            "BytesIO": BytesIO,
-            "StringIO": StringIO,
-            "base64": base64
-        }
-        
-        # Import common libraries and setup figure tracking
-        exec_code = """
-import pandas as pd
-import numpy as np
+    res = {"success":False, "output":"", "error":"", "figures":[], "execution_time":0}
+    start_time = time.time()
+    try:
+        # prepare temp dirs and script
+        tmp_script = os.path.join("data", "tmp_script.py")
+        tmp_fig_dir = os.path.join("data", "tmp_figs")
+        if os.path.exists(tmp_fig_dir): shutil.rmtree(tmp_fig_dir)
+        os.makedirs(tmp_fig_dir, exist_ok=True)
+        # build script: monkey-patch, user code, save figs
+        prelude="""
 import matplotlib.pyplot as plt
-import seaborn as sns
-import base64
-from io import BytesIO, StringIO
-from sklearn import datasets, metrics, model_selection, preprocessing, decomposition, cluster
 import warnings
 warnings.filterwarnings('ignore')
-
-# Try to set a safe style, but don't fail if it doesn't work
-try:
-    plt.style.use('default')
-except Exception as e:
-    print(f"Warning: Could not set matplotlib style: {e}")
-
-# Store original plt.figure function
-_original_figure = plt.figure
-
-# List to store figure references
-_figures = []
-
-# Override plt.figure to track figures
-def _custom_figure(*args, **kwargs):
-    fig = _original_figure(*args, **kwargs)
-    _figures.append(fig)
+_original_figure=plt.figure
+_figs=[]
+def _cf(*a,**k):
+    fig=_original_figure(*a,**k)
+    _figs.append(fig)
     return fig
-
-plt.figure = _custom_figure
-
-# Handle plt.subplots as well
-_original_subplots = plt.subplots
-def _custom_subplots(*args, **kwargs):
-    fig, ax = _original_subplots(*args, **kwargs)
-    _figures.append(fig)
-    return fig, ax
-
-plt.subplots = _custom_subplots
-
-# Function to get base64 encoded figures
-def _get_figures_as_base64():
-    results = []
-    for fig in _figures:
-        buf = BytesIO()
-        fig.savefig(buf, format='png', dpi=100)
-        buf.seek(0)
-        img_str = base64.b64encode(buf.read()).decode('utf-8')
-        results.append(img_str)
-    return results
-
-# Also capture any current figure at the end
-def _capture_current_figure():
-    current_fig = plt.gcf()
-    if current_fig not in _figures:
-        _figures.append(current_fig)
-
+plt.figure=_cf
+_orig_sub=plt.subplots
+def _cs(*a,**k):
+    fig,ax=_orig_sub(*a,**k)
+    _figs.append(fig)
+    return fig,ax
+plt.subplots=_cs
 """
-        
-        # Add the user's code
-        exec_code += "\n" + st.session_state.generated_code + "\n"
-        
-        # Add code to get figures at the end
-        exec_code += """
-# Capture current figure if it exists
-try:
-    _capture_current_figure()
-except:
-    pass
-
-# Capture all figures that were created
-_captured_figures = _get_figures_as_base64()
+        save_block="""
+# save figures to disk
+import os
+os.makedirs('/sandbox/figs',exist_ok=True)
+for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
 """
-        
-        # Run the code
-        start_time = time.time()
-        
-        try:
-            # Execute the code
-            exec(exec_code, exec_globals)
-            
-            # Mark as successful
-            result["success"] = True
-            
-            # Get captured figures
-            if "_captured_figures" in exec_globals:
-                result["figures"] = exec_globals["_captured_figures"]
-                
-        except Exception as e:
-            result["success"] = False
-            result["error"] = f"{type(e).__name__}: {str(e)}"
-            import traceback
-            result["error"] += f"\n{traceback.format_exc()}"
-            
-        finally:
-            # Record execution time
-            result["execution_time"] = time.time() - start_time
-            
-            # Get output
-            result["output"] = output_buffer.getvalue()
-            
-        # Store results
-        st.session_state.code_execution_results = result
+        script_content = prelude + "\n" + st.session_state.generated_code + "\n" + save_block
+        with open(tmp_script,'w') as f: f.write(script_content)
+        # run in sandbox
+        with SandboxSession(lang='python', keep_template=True) as sess:
+            # copy dataset and script
+            sess.copy_to_runtime(st.session_state.dataset_path, '/sandbox/data.csv')
+            sess.copy_to_runtime(tmp_script, '/sandbox/tmp_script.py')
+            # execute
+            result = sess.execute_command('python /sandbox/tmp_script.py')
+            out = getattr(result, 'text', '')
+            # collect figures
+            ls = sess.execute_command('ls /sandbox/figs')
+            names = ls.text.strip().split() if ls.text else []
+            figs = []
+            for fn in names:
+                remote = f'/sandbox/figs/{fn}'
+                local = os.path.join(tmp_fig_dir,fn)
+                sess.copy_from_runtime(remote, local)
+                with open(local,'rb') as im: figs.append(base64.b64encode(im.read()).decode('utf-8'))
+        # populate results
+        res['success'] = True
+        res['output'] = out
+        res['figures'] = figs
+    except Exception as e:
+        res['error'] = f"{type(e).__name__}: {e}"
+    finally:
+        res['execution_time'] = time.time()-start_time
+        st.session_state.code_execution_results=res
 
-# Main area
-main_col1, main_col2 = st.columns([3, 2])
-
-with main_col1:
-    # Dataset preview if available
+# Main layout
+col1, col2 = st.columns([3,2])
+with col1:
+    
     if st.session_state.dataset is not None:
-        st.subheader("Dataset Preview")
-        st.dataframe(st.session_state.dataset.head(), use_container_width=True)
+    
+        st.subheader('Dataset Preview')
+        st.dataframe(st.session_state.dataset.head(),use_container_width=True)
         
-        # User input
-        st.subheader("Ask About Your Data")
-        user_input = st.text_area(
-            "Enter your query about the dataset:",
-            placeholder="Example: Create a scatter plot of sepal length vs. sepal width colored by species.",
-            height=100
-        )
+        st.subheader('Conversation')
+    
+        # Display chat messages from history on app rerun
+        for i, message in enumerate(st.session_state.conversation):
+            with st.chat_message(message["role"]):
+                if message['role'] == 'user':
+                    st.markdown(message["content"])
+                else:
+                    st.markdown(message["content"]['prefix'])
+                    with st.expander('Show code'):
+                        st.code(message['content']['code'], language='python')
+                        b1, b2 = st.columns(2)
+                        # Add download button for the code
+                        with b1:
+                            st.download_button(
+                                label="💾 Save code",
+                                data=message['content']['code'],
+                                file_name=f"code_snippet_{i}.py",
+                                mime="text/plain",
+                                key=f"download_code_{i}"
+                            )
+                        with b2:
+                            # Add run button for the code
+                            if st.button("Run Code", key=f"run_code_{i}"):
+                                st.session_state.generated_code = message['content']['code']
+                                execute_code()
+                        
         
-        # Query buttons
-        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-        with col1:
-            submit_button = st.button("Generate Code", type="primary")
-        with col2:
-            run_button = st.button("Run Code", disabled=not st.session_state.generated_code)
-        with col3:
-            save_button = st.button("Save Code", disabled=not st.session_state.generated_code)
-        with col4:
-            new_query_button = st.button("New Query")
-        
-        # Process user input when submit button is clicked
-        if submit_button and user_input:
-            try:
-                with st.spinner(f"Generating code with {st.session_state.agent_type.capitalize()}..."):
-                    # Add user message to conversation
-                    st.session_state.conversation.append({
-                        "role": "user", 
-                        "content": user_input
-                    })
-                    
-                    # Update token counts (estimated)
-                    prompt_tokens = len(user_input) // 4  # Rough estimate
-                    st.session_state.token_count["input"] += prompt_tokens
-                    
-                    # Call the multi-agent synthesize function
-                    start_time = time.time()
-                    result = multi_agent_synthesize(
-                        user_input, 
-                        st.session_state.dataset_info, 
-                        st.session_state.dataset_path,
-                        st.session_state.agent_type
-                    )
-                    
-                    # Store generated code
-                    st.session_state.generated_code = result["code"].strip()
-                    
-                    # Update token counts (estimated)
-                    response_tokens = len(st.session_state.generated_code) // 4  # Rough estimate
-                    st.session_state.token_count["output"] += response_tokens
-                    
-                    # Add assistant messages to conversation
-                    st.session_state.conversation.append({
-                        "role": "assistant",
-                        "content": result["prefix"],
-                        "type": "text"
-                    })
-                    
-                    st.session_state.conversation.append({
-                        "role": "assistant",
-                        "content": st.session_state.generated_code,
-                        "type": "code"
-                    })
-                    
-                    # Run the code automatically
+        ui = st.chat_input("Ask about your data")
+        # b2, b4 = st.columns(2)
+        # with b2: run = st.button('Run Code', disabled=not st.session_state.generated_code)
+        # with b4: new = st.button('New Query')
+        if ui:
+            with st.spinner('Generating code via LangGraph…'):
+                try:
+                    out = synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path)
+                    st.session_state.generated_code = out['code'].strip()
+                    st.session_state.conversation.append({'role':'user', 'content':ui, 'type':'text'})
+                    st.session_state.conversation.append({'role':'assistant', 'content':{'prefix': out['prefix'], 
+                                                                                         'code':st.session_state.generated_code
+                                                                                         }, 'type':'text'})
+                    # save_conversation_to_file()
+                    if st.session_state.code_execution_results is not None:
+                        st.session_state.code_execution_results['figures'] = []
                     execute_code()
-            
-            except Exception as e:
-                st.error(f"Error generating code: {str(e)}")
-                logger.error(f"Error generating code: {e}", exc_info=True)
-        
-        # Run code when run button is clicked
-        if run_button and st.session_state.generated_code:
-            execute_code()
-        
-        # Save code when save button is clicked
-        if save_button and st.session_state.generated_code:
-            # Create downloads directory if it doesn't exist
-            os.makedirs("data/downloads", exist_ok=True)
-            
-            # Generate a filename based on the current time
-            timestamp = time.strftime("%Y%m%d-%H%M%S")
-            filename = f"data_analysis_{timestamp}.py"
-            filepath = os.path.join("data/downloads", filename)
-            
-            # Save the code to a file
-            with open(filepath, "w") as f:
-                f.write(st.session_state.generated_code)
-            
-            # Create a download button
-            with open(filepath, "r") as f:
-                code_content = f.read()
-                
-            st.download_button(
-                label="Download Python File",
-                data=code_content,
-                file_name=filename,
-                mime="text/plain"
-            )
-            
-            st.success(f"Code saved as {filename}")
-        
-        # Clear current code for a new query
-        if new_query_button:
-            st.session_state.generated_code = ""
-            st.session_state.code_execution_results = None
+                    st.rerun()
+                except Exception as e:
+                    st.error(f'Error generating code: {e}')
+                    logger.error('Synthesis failed', exc_info=True)
+        # if run: 
+        #     execute_code()
+        # if new: st.session_state.generated_code=st.session_state.code_execution_results=None
     else:
-        st.info("Please load a dataset from the sidebar first.")
+        st.info('Please load a dataset first.')
 
-with main_col2:
-    # Display generated code
-    st.subheader("Generated Code")
     
-    if st.session_state.generated_code:
-        st.code(st.session_state.generated_code, language="python")
-    else:
-        st.info("Code will appear here after generation.")
     
-    # Display execution results
-    if hasattr(st.session_state, 'code_execution_results') and st.session_state.code_execution_results:
-        st.subheader("Execution Results")
-        
-        results = st.session_state.code_execution_results
-        
-        # Display success/error status
-        if results["success"]:
-            st.success("Code executed successfully")
-            st.write(f"Execution time: {results['execution_time']:.2f} seconds")
+with col2:
+    st.subheader('Generated Code')
+    if st.session_state.generated_code: st.code(st.session_state.generated_code,language='python')
+    else: st.info('Code will appear here.')
+    if st.session_state.code_execution_results:
+        r=st.session_state.code_execution_results
+        if r['success']:
+            st.success('Code executed successfully')
+            st.write(f"Execution time: {r['execution_time']:.2f}s")
         else:
-            st.error("Code execution failed")
-            st.error(results["error"])
-        
-        # Display text output
-        if results["output"]:
-            st.subheader("Output")
-            st.text(results["output"])
-        
-        # Display figures
-        if results["figures"]:
-            st.subheader("Visualizations")
-            for i, fig_base64 in enumerate(results["figures"]):
-                st.image(
-                    BytesIO(base64.b64decode(fig_base64)),
-                    caption=f"Figure {i+1}",
-                    use_container_width=True
-                )
-
-# Display conversation history
-st.subheader("Conversation History")
-for message in st.session_state.conversation:
-    if message["role"] == "user":
-        st.markdown(f"**You:** {message['content']}")
-    else:  # assistant
-        if message.get("type") == "code":
-            st.markdown("**Assistant:** Generated the following code:")
-            with st.expander("Show code"):
-                st.code(message["content"], language="python")
-        else:
-            st.markdown(f"**Assistant:** {message['content']}")
-
-# Footer
-st.markdown("---")
-st.markdown(
-    f"Data Analysis LLM Agent - Using {st.session_state.agent_type.capitalize()} with LangGraph for code generation"
-)
+            st.error('Execution failed'); st.error(r['error'])
+        if r['output']: st.subheader('Output'); st.text(r['output'])
+        if r['figures']:
+            st.subheader('Visualizations')
+            for i,b64 in enumerate(r['figures']): 
+                st.image(BytesIO(base64.b64decode(b64)),caption=f'Figure {i+1}')
