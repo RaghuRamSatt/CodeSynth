@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 
 class OpenAIAgent(BaseAgent):
     """
-    Agent implementation using Open AI's GPT 4.1
+    Agent implementation using Open AI's GPT 4.1 and/or GPT o4-mini
     """
     
     def __init__(self, config_path: str = "config/config.yaml"):
         """Initialize the Open AI agent."""
         super().__init__(config_path)
         self.client = None
-        self.model_name = self.config.get("models", {}).get("openai", {}).get("model_name", "gpt-4.1")
+        self.model_name = self.config.get("models", {}).get("openai", {}).get("model_name", "o4-mini")
         self.max_tokens = self.config.get("models", {}).get("openai", {}).get("max_tokens", 1024)
         self.temperature = self.config.get("models", {}).get("openai", {}).get("temperature", 0)
         self.api_key = os.getenv("OPENAI_API_KEY", "")

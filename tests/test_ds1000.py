@@ -87,7 +87,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         # default="codex002",
-        default="openai-selected",
+        default="o4mini-selected",
         help="which results to run",
     )
     args = parser.parse_args()
