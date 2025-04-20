@@ -12,6 +12,7 @@ import pandas as pd
 from agents.claude_agent import ClaudeAgent
 from agents.base_agent import BaseAgent
 from agents.groq_agent import GroqAgent
+from agents.openai_agent import OpenAIAgent
 from agents.opensource_agent import OpenSourceAgent
 from evaluation.evaluator import ModelEvaluator
 from evaluation.test_suite import TestSuite
@@ -60,8 +61,9 @@ def get_available_agents():
         from agents.openai_agent import OpenAIAgent
         openai_agent = OpenAIAgent()
         if openai_agent.initialize():
+            # Use the explicit name that matches your command line parameter
             agents["openai-gpt4.1"] = openai_agent
-            logger.info("OpenAI agent initialized successfully")
+            logger.info(f"OpenAI agent initialized successfully with model: {openai_agent.model_name}")
         else:
             logger.warning("Failed to initialize OpenAI agent")
     except Exception as e:

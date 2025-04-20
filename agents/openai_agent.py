@@ -22,27 +22,62 @@ class OpenAIAgent(BaseAgent):
         super().__init__(config_path)
         self.client = None
         self.model_name = self.config.get("models", {}).get("openai", {}).get("model_name", "gpt-4.1")
-        self.max_tokens = self.config.get("models", {}).get("openai", {}).get("max_tokens", 4096)
-        self.temperature = self.config.get("models", {}).get("openai", {}).get("temperature", 0.2)
+        
+        # Fix the max_tokens parsing issue
+        max_tokens_value = self.config.get("models", {}).get("openai", {}).get("max_tokens", 4096)
+        if isinstance(max_tokens_value, str):
+            # Handle template format ${VAR:default}
+            if max_tokens_value.startswith("${") and ":" in max_tokens_value:
+                # Extract default value after colon
+                default_value = max_tokens_value.split(":", 1)[1].rstrip("}")
+                self.max_tokens = int(default_value)
+            else:
+                # Try simple conversion or use default
+                try:
+                    self.max_tokens = int(max_tokens_value)
+                except ValueError:
+                    self.max_tokens = 4096
+        else:
+            self.max_tokens = int(max_tokens_value)
+        
+        # Ensure temperature is floating point
+        temp_value = self.config.get("models", {}).get("openai", {}).get("temperature", 0.2)
+        self.temperature = float(temp_value) if isinstance(temp_value, (int, float, str)) else 0.2
+        
         self.api_key = os.getenv("OPENAI_API_KEY", "")
         self.last_prompt_tokens = 0
         self.last_completion_tokens = 0
         
         # Define prompt templates
         self.prompt_templates = {
-            "code_generation": (
-                "Generate Python code for the following data analysis task:\n\n"
-                "User query: {user_prompt}\n\n"
-                "Dataset information:\n{dataset_info}\n\n"
-                "Requirements:\n"
-                "1. The dataset is already loaded as a pandas DataFrame named 'df'\n"
-                "2. Use pandas, numpy, matplotlib, seaborn, and scikit-learn as needed\n"
-                "3. Include visualizations when appropriate\n"
-                "4. Handle potential errors and edge cases\n"
-                "5. Include clear comments explaining your approach\n"
-                "6. Ensure the code is efficient and follows best practices\n\n"
-                "Please respond with well-documented Python code that addresses the query."
-            ),
+        "code_generation": (
+            "Generate Python code for the following data analysis task:\n\n"
+            "User query: {user_prompt}\n\n"
+            "Dataset information:\n{dataset_info}\n\n"
+            "Requirements:\n"
+            "1. The dataset is available at '/sandbox/data.csv'. Always use this path to load the data.\n"
+            "2. Use pandas, numpy, matplotlib, seaborn, and scikit-learn as needed\n"
+            "3. Include visualizations when appropriate\n"
+            "4. Handle potential errors and edge cases\n"
+            "5. Include clear comments explaining your approach\n"
+            "6. Ensure the code is efficient and follows best practices\n"
+            "7. DO NOT use libraries that aren't pre-installed (like pandas_profiling)\n\n"
+            "Please respond with well-documented Python code that addresses the query."
+        ),
+        # self.prompt_templates = {
+        #     "code_generation": (
+        #         "Generate Python code for the following data analysis task:\n\n"
+        #         "User query: {user_prompt}\n\n"
+        #         "Dataset information:\n{dataset_info}\n\n"
+        #         "Requirements:\n"
+        #         "1. The dataset is already loaded as a pandas DataFrame named 'df'\n"
+        #         "2. Use pandas, numpy, matplotlib, seaborn, and scikit-learn as needed\n"
+        #         "3. Include visualizations when appropriate\n"
+        #         "4. Handle potential errors and edge cases\n"
+        #         "5. Include clear comments explaining your approach\n"
+        #         "6. Ensure the code is efficient and follows best practices\n\n"
+        #         "Please respond with well-documented Python code that addresses the query."
+        #     ),
             "question_answering": (
                 "Please answer the following question about data analysis or Python code:\n\n"
                 "Question: {user_question}\n\n"
@@ -72,6 +107,92 @@ class OpenAIAgent(BaseAgent):
             logger.error(f"Failed to initialize OpenAI agent: {e}")
             return False
             
+    # def generate_code(self, prompt: str, dataset_info: Dict[str, Any]) -> str:
+    #     """Generate Python code using OpenAI."""
+    #     if not self.client:
+    #         if not self.initialize():
+    #             return "Error: OpenAI agent is not initialized. Please check your API key."
+        
+    #     formatted_dataset_info = self.format_dataset_info(dataset_info)
+    #     full_prompt = self.prompt_templates["code_generation"].format(
+    #         user_prompt=prompt,
+    #         dataset_info=formatted_dataset_info
+    #     )
+        
+    #     # System prompt
+    #     system_content = "You are an expert data scientist. Generate clear, efficient, and well-documented Python code for data analysis tasks."
+        
+    #     # Check prompt length and adjust max_tokens to stay within model context limits
+    #     try:
+    #         import tiktoken
+    #         encoding = tiktoken.encoding_for_model(self.model_name)
+    #         system_tokens = len(encoding.encode(system_content))
+    #         prompt_tokens = len(encoding.encode(full_prompt))
+    #         total_input_tokens = system_tokens + prompt_tokens
+            
+    #         # GPT-4 models typically have 8192 token limit
+    #         model_context_limit = 8192
+    #         # Reserve a buffer of 200 tokens for safety
+    #         buffer = 200
+            
+    #         # Calculate available tokens for completion
+    #         available_tokens = max(model_context_limit - total_input_tokens - buffer, 1024)
+    #         # Cap at our configured max_tokens
+    #         completion_tokens = min(available_tokens, self.max_tokens)
+            
+    #         logger.info(f"Using {completion_tokens} tokens for completion (prompt: {total_input_tokens} tokens)")
+    #     except ImportError:
+    #         # If tiktoken isn't available, use a conservative value
+    #         completion_tokens = min(4096, self.max_tokens)
+    #         logger.info(f"Tiktoken not available, using conservative completion limit: {completion_tokens}")
+        
+    #     try:
+    #         response = self.client.chat.completions.create(
+    #             model=self.model_name,
+    #             messages=[
+    #                 {
+    #                     "role": "system", 
+    #                     "content": system_content
+    #                 },
+    #                 {
+    #                     "role": "user", 
+    #                     "content": full_prompt
+    #                 }
+    #             ],
+    #             max_tokens=completion_tokens,
+    #             temperature=self.temperature
+    #         )
+            
+    #         # Store token usage
+    #         self.last_prompt_tokens = response.usage.prompt_tokens
+    #         self.last_completion_tokens = response.usage.completion_tokens
+            
+    #         # Extract code from the response
+    #         code = self._extract_code_from_response(response.choices[0].message.content)
+            
+    #         # Format output with prefix and code
+    #         prefix = "Here's an analysis approach for your data:"
+    #         if "```" not in response.choices[0].message.content:
+    #             # No code blocks, return the whole response
+    #             return {"prefix": prefix, "code": code}
+            
+    #         # Process any text before the first code block as the prefix
+    #         content = response.choices[0].message.content
+    #         if "```python" in content:
+    #             parts = content.split("```python", 1)
+    #             if parts[0].strip():
+    #                 prefix = parts[0].strip()
+    #         elif "```" in content:
+    #             parts = content.split("```", 1)
+    #             if parts[0].strip():
+    #                 prefix = parts[0].strip()
+                    
+    #         return {"prefix": prefix, "code": code}
+            
+    #     except Exception as e:
+    #         logger.error(f"Error generating code with OpenAI: {e}")
+    #         return f"Error generating code: {str(e)}"
+
     def generate_code(self, prompt: str, dataset_info: Dict[str, Any]) -> str:
         """Generate Python code using OpenAI."""
         if not self.client:
@@ -84,20 +205,47 @@ class OpenAIAgent(BaseAgent):
             dataset_info=formatted_dataset_info
         )
         
+        # System prompt
+        system_content = "You are an expert data scientist. Generate clear, efficient, and well-documented Python code for data analysis tasks."
+        
+        # Check prompt length and adjust max_tokens to stay within model context limits
+        try:
+            import tiktoken
+            encoding = tiktoken.encoding_for_model(self.model_name)
+            system_tokens = len(encoding.encode(system_content))
+            prompt_tokens = len(encoding.encode(full_prompt))
+            total_input_tokens = system_tokens + prompt_tokens
+            
+            # GPT-4 models typically have 8192 token limit
+            model_context_limit = 8192
+            # Reserve a buffer of 200 tokens for safety
+            buffer = 200
+            
+            # Calculate available tokens for completion
+            available_tokens = max(model_context_limit - total_input_tokens - buffer, 1024)
+            # Cap at our configured max_tokens
+            completion_tokens = min(available_tokens, self.max_tokens)
+            
+            logger.info(f"Using {completion_tokens} tokens for completion (prompt: {total_input_tokens} tokens)")
+        except ImportError:
+            # If tiktoken isn't available, use a conservative value
+            completion_tokens = min(4096, self.max_tokens)
+            logger.info(f"Tiktoken not available, using conservative completion limit: {completion_tokens}")
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {
                         "role": "system", 
-                        "content": "You are an expert data scientist. Generate clear, efficient, and well-documented Python code for data analysis tasks."
+                        "content": system_content
                     },
                     {
                         "role": "user", 
                         "content": full_prompt
                     }
                 ],
-                max_tokens=self.max_tokens,
+                max_tokens=completion_tokens,
                 temperature=self.temperature
             )
             
@@ -105,31 +253,14 @@ class OpenAIAgent(BaseAgent):
             self.last_prompt_tokens = response.usage.prompt_tokens
             self.last_completion_tokens = response.usage.completion_tokens
             
-            # Extract code from the response
+            # Extract and return code from the response (fixed to return string, not dict)
             code = self._extract_code_from_response(response.choices[0].message.content)
-            
-            # Format output with prefix and code
-            prefix = "Here's an analysis approach for your data:"
-            if "```" not in response.choices[0].message.content:
-                # No code blocks, return the whole response
-                return {"prefix": prefix, "code": code}
-            
-            # Process any text before the first code block as the prefix
-            content = response.choices[0].message.content
-            if "```python" in content:
-                parts = content.split("```python", 1)
-                if parts[0].strip():
-                    prefix = parts[0].strip()
-            elif "```" in content:
-                parts = content.split("```", 1)
-                if parts[0].strip():
-                    prefix = parts[0].strip()
-                    
-            return {"prefix": prefix, "code": code}
+            return code
             
         except Exception as e:
             logger.error(f"Error generating code with OpenAI: {e}")
             return f"Error generating code: {str(e)}"
+    
 
     def answer_question(self, question: str, context: Optional[str] = None) -> str:
         """Answer a question about code or dataset."""
@@ -142,20 +273,42 @@ class OpenAIAgent(BaseAgent):
             context=context or ""
         )
         
+        # System prompt
+        system_content = "You are a helpful data science expert providing clear and accurate answers."
+        
+        # Calculate available tokens for completion
+        try:
+            import tiktoken
+            encoding = tiktoken.encoding_for_model(self.model_name)
+            system_tokens = len(encoding.encode(system_content))
+            prompt_tokens = len(encoding.encode(full_prompt))
+            total_input_tokens = system_tokens + prompt_tokens
+            
+            model_context_limit = 8192
+            buffer = 200
+            
+            available_tokens = max(model_context_limit - total_input_tokens - buffer, 1024)
+            completion_tokens = min(available_tokens, self.max_tokens)
+            
+            logger.info(f"Q&A: Using {completion_tokens} tokens for completion (prompt: {total_input_tokens} tokens)")
+        except ImportError:
+            completion_tokens = min(4096, self.max_tokens)
+            logger.info(f"Q&A: Tiktoken not available, using conservative completion limit: {completion_tokens}")
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {
                         "role": "system", 
-                        "content": "You are a helpful data science expert providing clear and accurate answers."
+                        "content": system_content
                     },
                     {
                         "role": "user", 
                         "content": full_prompt
                     }
                 ],
-                max_tokens=self.max_tokens,
+                max_tokens=completion_tokens,
                 temperature=self.temperature
             )
             
@@ -180,20 +333,42 @@ class OpenAIAgent(BaseAgent):
             user_feedback=feedback
         )
         
+        # System prompt
+        system_content = "You are an expert Python programmer specializing in improving data science code."
+        
+        # Calculate available tokens for completion
+        try:
+            import tiktoken
+            encoding = tiktoken.encoding_for_model(self.model_name)
+            system_tokens = len(encoding.encode(system_content))
+            prompt_tokens = len(encoding.encode(full_prompt))
+            total_input_tokens = system_tokens + prompt_tokens
+            
+            model_context_limit = 8192
+            buffer = 200
+            
+            available_tokens = max(model_context_limit - total_input_tokens - buffer, 1024)
+            completion_tokens = min(available_tokens, self.max_tokens)
+            
+            logger.info(f"Improve: Using {completion_tokens} tokens for completion (prompt: {total_input_tokens} tokens)")
+        except ImportError:
+            completion_tokens = min(4096, self.max_tokens)
+            logger.info(f"Improve: Tiktoken not available, using conservative completion limit: {completion_tokens}")
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {
                         "role": "system", 
-                        "content": "You are an expert Python programmer specializing in improving data science code."
+                        "content": system_content
                     },
                     {
                         "role": "user", 
                         "content": full_prompt
                     }
                 ],
-                max_tokens=self.max_tokens,
+                max_tokens=completion_tokens,
                 temperature=self.temperature
             )
             
