@@ -128,4 +128,11 @@ zstandard==0.23.0
 # source venv/bin/activate
 # conda deactivate
 # streamlit run app.py
-# python run_evaluation.py --agent groq-llama --categories "basic_statistics,data_cleaning,correlation_analysis,time_series_analysis,categorical_analysis,visualization,advanced_analysis" --limit 30 --verbose
+# python run_evaluation.py --agent openai-gpt4.1 --categories "basic_statistics,data_cleaning,correlation_analysis,time_series_analysis,categorical_analysis,visualization,advanced_analysis" --limit 30 --verbose
+# python run_evaluation.py --agent openai-gpt4.1 --categories "basic_statistics,data_cleaning,correlation_analysis,time_series_analysis,categorical_analysis,visualization,advanced_analysis" --limit 30 --verbose
+
+
+
+# sudo service docker start
+# newgrp docker
+# docker ps
