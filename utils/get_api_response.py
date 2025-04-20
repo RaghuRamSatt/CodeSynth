@@ -18,7 +18,7 @@ def fetch_api_response(ai_model, client, prompt):
     elif ai_model == "Open AI":
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="gpt-3.5-turbo"
+            model="gpt-4.1"
         )
         code_text = response.choices[0].message.content
     

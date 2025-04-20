@@ -167,7 +167,7 @@ class CodeEvaluator:
         metrics["comment_ratio"] * 0.25,
         metrics["has_imports"] * 0.1,
         metrics["has_error_handling"] * 0.4,  # Increased from 0.3
-        metrics["has_functions"] * 0.25       # Reduced from 0.3
+        metrics["has_functions"] * 0.25       # Reduced from 0.3 (maybe lower weight)
         ]
         
         metrics["score"] = sum(score_components)
