@@ -4,4 +4,5 @@ from agents.opensource_agent import OpenSourceAgent
 
 # Comment out for now
 from agents.claude_agent import ClaudeAgent
-# from agents.openai_agent import OpenAIAgent
+from agents.groq_agent import GroqAgent
+from agents.openai_agent import OpenAIAgent

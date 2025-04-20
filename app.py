@@ -1,5 +1,5 @@
 """
-Enhanced Streamlit app for data analysis with Claude 3.5 - Fixed version
+Enhanced Streamlit app for data analysis with multi-agent LangGraph framework
 """
 
 import os
@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from io import StringIO, BytesIO
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from multi_agent_synth import synthesize as multi_agent_synthesize
 
 # Configure logging
 logging.basicConfig(
@@ -52,27 +54,88 @@ def init_session_state():
         st.session_state.code_execution_results = None
     if 'token_count' not in st.session_state:
         st.session_state.token_count = {"input": 0, "output": 0}
+    if 'agent_type' not in st.session_state:
+        st.session_state.agent_type = "claude"
 
 init_session_state()
 
 # App title and description
 st.title("Data Analysis LLM Agent")
 st.markdown("""
-This application uses Claude 3.5 to generate Python code for data analysis based on your natural language queries. 
-Simply load a dataset, ask questions about your data, and get Python code and visualizations.
+This application uses LangGraph with multiple LLM backends to generate Python code for data analysis.
+Choose your preferred model, load a dataset, ask questions, and get Python code with visualizations.
 """)
 
 # Sidebar
 with st.sidebar:
     st.header("Configuration")
     
-    # API key status
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if api_key:
-        st.success("Claude API Key: ✓ Connected")
+    # Model selection
+    st.subheader("Select Agent")
+    # agent_type = st.selectbox(
+    #     "Choose the agent to generate code:",
+    #     ["claude", "opensource"],
+    #     index=0,
+    #     help="Claude agent uses Claude 3.5 Sonnet, opensource uses Phi-3 Mini"
+    # )
+
+    # # Store the selection in session state
+    # if st.session_state.agent_type != agent_type:
+    #     st.session_state.agent_type = agent_type
+    
+    # # API key status based on selected agent
+    # if agent_type == "claude":
+    #     api_key = os.getenv("ANTHROPIC_API_KEY")
+    #     if api_key:
+    #         st.success("Claude API Key: ✓ Connected")
+    #     else:
+    #         st.error("Claude API Key: ✗ Missing")
+    #         st.info("Add ANTHROPIC_API_KEY to your .env file")
+    # else:
+    #     # For opensource model
+    #     model_path = os.getenv("PHI3_MODEL_PATH")
+    #     model_endpoint = os.getenv("PHI3_ENDPOINT")
+    #     if model_path or model_endpoint:
+    #         st.success("Open-source model: ✓ Available")
+    #     else:
+    #         st.warning("Open-source model may not be properly configured")
+    #         st.info("Add PHI3_MODEL_PATH or PHI3_ENDPOINT to your .env file")
+
+    agent_type = st.selectbox(
+    "Choose the agent to generate code:",
+    ["claude", "groq-llama", "groq-gemma", "opensource"],
+    index=0,
+    help="Select model for code generation"
+    )
+
+    # Store the selection in session state
+    if st.session_state.agent_type != agent_type:
+        st.session_state.agent_type = agent_type
+
+    # API key status based on selected agent
+    if agent_type == "claude":
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if api_key:
+            st.success("Claude API Key: ✓ Connected")
+        else:
+            st.error("Claude API Key: ✗ Missing")
+            st.info("Add ANTHROPIC_API_KEY to your .env file")
+    elif agent_type.startswith("groq"):
+        api_key = os.getenv("GROQ_API_KEY")
+        if api_key:
+            st.success("Groq API Key: ✓ Connected")
+        else:
+            st.error("Groq API Key: ✗ Missing")
+            st.info("Add GROQ_API_KEY to your .env file")
     else:
-        st.error("Claude API Key: ✗ Missing")
-        st.info("Add ANTHROPIC_API_KEY to your .env file")
+        # For opensource model
+        model_path = os.getenv("PHI3_MODEL_PATH")
+        model_endpoint = os.getenv("PHI3_ENDPOINT")
+        if model_path or model_endpoint:
+            st.success("Open-source model: ✓ Available")
+        else:
+            st.warning("Open-source model may not be properly configured")
+            st.info("Add PHI3_MODEL_PATH or PHI3_ENDPOINT to your .env file")
     
     # Dataset upload
     st.subheader("Upload Dataset")
@@ -373,99 +436,48 @@ with main_col1:
         # Process user input when submit button is clicked
         if submit_button and user_input:
             try:
-                with st.spinner("Generating code with Claude 3.5..."):
-                    # Check for API key
-                    api_key = os.getenv("ANTHROPIC_API_KEY")
-                    if not api_key:
-                        st.error("ANTHROPIC_API_KEY not found in environment variables.")
-                        logger.error("ANTHROPIC_API_KEY not found in environment variables.")
-                    else:
-                        # Initialize Anthropic client
-                        client = anthropic.Anthropic(api_key=api_key)
-                        
-                        # Format dataset info for prompt
-                        dataset_info_text = f"""
-                        Dataset name: {st.session_state.dataset_info['name']}
-                        Shape: {st.session_state.dataset_info['shape'][0]} rows, {st.session_state.dataset_info['shape'][1]} columns
-                        Columns: 
-                        """
-                        
-                        for col in st.session_state.dataset_info['columns']:
-                            dataset_info_text += f"- {col['name']} ({col['type']})\n"
-                        
-                        dataset_info_text += f"\nSample data:\n{st.session_state.dataset.head(5).to_string()}"
-                        
-                        # Create prompt for Claude with special instructions to avoid problematic code
-                        prompt = f"""
-                        Generate Python code for the following data analysis task:
-                        
-                        User query: {user_input}
-                        
-                        Dataset information:
-                        {dataset_info_text}
-                        
-                        The dataset is already loaded into a pandas DataFrame called 'df'.
-                        
-                        IMPORTANT REQUIREMENTS:
-                        1. Generate well-documented Python code with detailed comments
-                        2. Use pandas, numpy, matplotlib, seaborn, and scikit-learn as needed
-                        3. Include proper error handling where appropriate
-                        4. Make sure to create informative visualizations with proper labels and titles
-                        5. DO NOT use plt.style.use('seaborn') - use default styles or explicitly set colors/styles
-                        6. When creating figures, always use plt.figure() or plt.subplots() to create a new figure
-                        7. Only provide the code (no explanations before or after the code)
-                        
-                        The code will be executed with all necessary libraries already imported (pandas, numpy, matplotlib, seaborn, scikit-learn).
-                        """
-                        
-                        # Add user message to conversation
-                        st.session_state.conversation.append({
-                            "role": "user", 
-                            "content": user_input
-                        })
-                        
-                        # Update token counts (estimated)
-                        prompt_tokens = len(prompt) // 4  # Rough estimate
-                        st.session_state.token_count["input"] += prompt_tokens
-                        
-                        # Send request to Claude
-                        start_time = time.time()
-                        response = client.messages.create(
-                            model="claude-3-5-sonnet-20240620",
-                            max_tokens=2000,
-                            temperature=0.2,
-                            messages=[{"role": "user", "content": prompt}]
-                        )
-                        
-                        # Process the response
-                        code_text = response.content[0].text
-                        
-                        # Extract code if it's wrapped in markdown
-                        if "```python" in code_text:
-                            code_parts = code_text.split("```python")
-                            if len(code_parts) > 1:
-                                code_text = code_parts[1].split("```")[0]
-                        elif "```" in code_text:
-                            code_parts = code_text.split("```")
-                            if len(code_parts) > 1:
-                                code_text = code_parts[1]
-                        
-                        # Store generated code
-                        st.session_state.generated_code = code_text.strip()
-                        
-                        # Update token counts (estimated)
-                        response_tokens = len(code_text) // 4  # Rough estimate
-                        st.session_state.token_count["output"] += response_tokens
-                        
-                        # Add assistant message to conversation
-                        st.session_state.conversation.append({
-                            "role": "assistant",
-                            "content": st.session_state.generated_code,
-                            "type": "code"
-                        })
-                        
-                        # Run the code automatically
-                        execute_code()
+                with st.spinner(f"Generating code with {st.session_state.agent_type.capitalize()}..."):
+                    # Add user message to conversation
+                    st.session_state.conversation.append({
+                        "role": "user", 
+                        "content": user_input
+                    })
+                    
+                    # Update token counts (estimated)
+                    prompt_tokens = len(user_input) // 4  # Rough estimate
+                    st.session_state.token_count["input"] += prompt_tokens
+                    
+                    # Call the multi-agent synthesize function
+                    start_time = time.time()
+                    result = multi_agent_synthesize(
+                        user_input, 
+                        st.session_state.dataset_info, 
+                        st.session_state.dataset_path,
+                        st.session_state.agent_type
+                    )
+                    
+                    # Store generated code
+                    st.session_state.generated_code = result["code"].strip()
+                    
+                    # Update token counts (estimated)
+                    response_tokens = len(st.session_state.generated_code) // 4  # Rough estimate
+                    st.session_state.token_count["output"] += response_tokens
+                    
+                    # Add assistant messages to conversation
+                    st.session_state.conversation.append({
+                        "role": "assistant",
+                        "content": result["prefix"],
+                        "type": "text"
+                    })
+                    
+                    st.session_state.conversation.append({
+                        "role": "assistant",
+                        "content": st.session_state.generated_code,
+                        "type": "code"
+                    })
+                    
+                    # Run the code automatically
+                    execute_code()
             
             except Exception as e:
                 st.error(f"Error generating code: {str(e)}")
@@ -563,5 +575,5 @@ for message in st.session_state.conversation:
 # Footer
 st.markdown("---")
 st.markdown(
-    "Data Analysis LLM Agent - Using Claude 3.5 Sonnet for data science code generation"
+    f"Data Analysis LLM Agent - Using {st.session_state.agent_type.capitalize()} with LangGraph for code generation"
 )

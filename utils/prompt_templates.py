@@ -223,3 +223,91 @@ FORMAT:
 - Include detailed comments explaining your improvements
 """
 }
+
+
+GROQ_PROMPT_TEMPLATES = {
+    "code_generation": """
+<task>
+Generate Python code to analyze a dataset based on a user query
+</task>
+
+<user_query>
+{user_prompt}
+</user_query>
+
+<dataset_information>
+{dataset_info}
+</dataset_information>
+
+<instructions>
+Create Python code that effectively addresses the user's query. The code should:
+1. Use pandas, numpy, and appropriate visualization libraries
+2. Include clear comments explaining the approach and key steps
+3. Handle potential errors like missing data or invalid types using try/except blocks
+4. Create dynamic visualizations with proper labels and titles
+5. DO NOT use plt.style.use('seaborn') - use default styles
+6. When creating figures, use proper subplot layouts based on the actual data
+7. Create dynamic layouts based on actual number of columns (use len() when creating subplot layouts)
+8. Add error handling around visualization code
+9. IMPORTANT: For handling data files:
+   - The dataset is ALREADY LOADED as the 'df' variable - use this directly
+   - If you must reload the dataset, ALWAYS use encoding detection:
+     ```
+     # Detect encoding
+     import chardet
+     with open(dataset_path, 'rb') as f:
+         result = chardet.detect(f.read())
+     encoding = result['encoding']
+     
+     # Load with detected encoding
+     df = pd.read_csv(dataset_path, encoding=encoding)
+     ```
+10. Instead of pmdarima, use statsmodels' ARIMA implementation for time series forecasting.
+
+Provide only the Python code with no additional explanations or conversation.
+</instructions>
+""",
+
+    "question_answering": """
+<task>
+Answer a data science question based on context provided
+</task>
+
+<question>
+{user_question}
+</question>
+
+<context>
+{context}
+</context>
+
+<instructions>
+Provide a clear, accurate, and educational answer to the question. Use technical terms appropriately but ensure the explanation is accessible to someone with basic data science knowledge.
+</instructions>
+""",
+
+    "code_improvement": """
+<task>
+Improve Python code based on user feedback
+</task>
+
+<original_code>
+{original_code}
+</original_code>
+
+<user_feedback>
+{user_feedback}
+</user_feedback>
+
+<instructions>
+Create an improved version of the code that addresses the user's feedback while maintaining the original functionality. Focus on:
+1. Code efficiency and performance
+2. Readability and maintainability
+3. Best practices for Python and data science
+4. Error handling and edge cases
+
+Provide only the improved code with no additional explanations.
+</instructions>
+"""
+}
+
