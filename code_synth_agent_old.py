@@ -8,16 +8,14 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain_groq.chat_models import ChatGroq
 from langchain_anthropic.chat_models import ChatAnthropic
-from langchain_openai.chat_models import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from llm_sandbox import SandboxSession
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+api_key = os.getenv("GROQ_API_KEY")
+# api_key = os.getenv("ANTHROPIC_API_KEY")
 
 # Define graph state
 class GraphState(TypedDict):
@@ -48,10 +46,11 @@ Here is the user question:
 
 # Helper functions for LangGraph nodes
 
-def generate(state: GraphState, code_chain) -> GraphState:
+def generate(state: GraphState) -> GraphState:
+
     try:
         print(f"Generation - {state['iterations']}")
-        solution = code_chain.invoke({"messages": state["messages"]})
+        solution = code_gen_chain.invoke({"messages": state["messages"]})
     except Exception as e:
         state["messages"].append(("user", "Parsing error! Please ensure you use the CODE tool."))
         state["error"] = "yes"
@@ -101,9 +100,9 @@ def check_groq_output(tool_output):
     # Error with parsing
     if tool_output["parsing_error"]:
         # Report back output and parsing errors
+        print(f"Error parsing your output! Be sure to invoke the tool. Output: {raw_output}. \n Parse error: {error}")
         raw_output = str(tool_output["raw"].content)
         error = tool_output["parsing_error"]
-        print(f"Error parsing your output! Be sure to invoke the tool. Output: {raw_output}. \n Parse error: {error}")
         return "parsing_error"
 
     # Tool was not invoked
@@ -129,23 +128,27 @@ def check_parsing_error(state: GraphState) -> str:
     else:
         return 'check_code'
 
-# Function to get the appropriate LLM based on model choice
-def get_llm(model_choice="groq-gemma"):
-    if model_choice == "claude":
-        return ChatAnthropic(temperature=0.1, model="claude-3-5-sonnet-20240620", api_key=ANTHROPIC_API_KEY)
-    elif model_choice == "groq-llama":
-        return ChatGroq(temperature=0.1, model="llama-3.3-70b-versatile", api_key=GROQ_API_KEY)
-    elif model_choice == "groq-gemma":
-        return ChatGroq(temperature=0.1, model="gemma2-9b-it", api_key=GROQ_API_KEY)
-    elif model_choice == "openai-gpt4.1":
-        return ChatOpenAI(temperature=0.1, model="gpt-4.1", api_key=OPENAI_API_KEY)
-    elif model_choice == "openai-o4mini":
-        return ChatOpenAI(model="o4-mini", api_key=OPENAI_API_KEY)
-    else:
-        # Default to Groq/Gemma
-        return ChatGroq(temperature=0.1, model="gemma2-9b-it", api_key=GROQ_API_KEY)
+# Build graph
+workflow = StateGraph(GraphState)
+llm = ChatGroq(temperature=0.1, api_key=api_key, model="gemma2-9b-it")
+# llm = ChatAnthropic(temperature=0.1, model="claude-3-5-sonnet-20240620", api_key=api_key)
+structured_llm = llm.with_structured_output(CodeOutput, include_raw=True)
+code_gen_chain = code_gen_prompt | structured_llm | check_groq_output
 
-def synthesize(user_query: str, dataset_info: Dict, dataset_path: str, model_choice="groq-gemma") -> Dict:
+workflow.add_node("generate", generate)
+workflow.add_node("check_code", code_check)
+
+workflow.add_edge(START, "generate")
+workflow.add_conditional_edges("generate", check_parsing_error, {"check_code": "check_code", "generate": "generate"})
+workflow.add_conditional_edges("check_code", decide_finish, {"end": END, "generate": "generate"})
+
+thread_cfg = {"configurable": {"thread_id": uuid.uuid4()}}
+checkpointer = MemorySaver()
+graph = workflow.compile(checkpointer=checkpointer)
+
+# Synthesize helper
+
+def synthesize(user_query: str, dataset_info: Dict, dataset_path: str) -> Dict:
     # Build dataset info text
     info = f"Dataset name: {dataset_info['name']}\n"
     info += f"Shape: {dataset_info['shape'][0]} rows, {dataset_info['shape'][1]} columns\n"
@@ -165,26 +168,6 @@ def synthesize(user_query: str, dataset_info: Dict, dataset_path: str, model_cho
     and use the CODE tool with a prefix and code block only.
     """
     
-    # Initialize LLM and chain based on model choice
-    llm = get_llm(model_choice)
-    structured_llm = llm.with_structured_output(CodeOutput, include_raw=True)
-    code_gen_chain = code_gen_prompt | structured_llm | check_groq_output
-    
-    # Create custom generate function that includes the code chain
-    def generate_with_chain(state):
-        return generate(state, code_gen_chain)
-    
-    # Build workflow graph
-    workflow = StateGraph(GraphState)
-    workflow.add_node("generate", generate_with_chain)
-    workflow.add_node("check_code", code_check)
-    workflow.add_edge(START, "generate")
-    workflow.add_conditional_edges("generate", check_parsing_error, {"check_code": "check_code", "generate": "generate"})
-    workflow.add_conditional_edges("check_code", decide_finish, {"end": END, "generate": "generate"})
-    thread_cfg = {"configurable": {"thread_id": uuid.uuid4()}}
-    checkpointer = MemorySaver()
-    graph = workflow.compile(checkpointer=checkpointer)
-    
     # Initialize graph state
     initial_state: GraphState = {
         "messages": [("user", prompt)],
@@ -199,32 +182,12 @@ def synthesize(user_query: str, dataset_info: Dict, dataset_path: str, model_cho
     sol = final_state['generation']
     return {"prefix": sol.prefix, "code": sol.code}
 
-# Remove the global initialization that was causing the error
-# This CLI section still uses the old approach, so we need to modify it
 if __name__ == "__main__":
     # CLI fallback
-    def cli_generate(state):
-        # Create a temporary LLM for CLI use
-        temp_llm = get_llm("groq-gemma")
-        temp_structured_llm = temp_llm.with_structured_output(CodeOutput, include_raw=True)
-        temp_chain = code_gen_prompt | temp_structured_llm | check_groq_output
-        return generate(state, temp_chain)
-        
-    # Build a workflow just for CLI
-    cli_workflow = StateGraph(GraphState)
-    cli_workflow.add_node("generate", cli_generate)
-    cli_workflow.add_node("check_code", code_check)
-    cli_workflow.add_edge(START, "generate")
-    cli_workflow.add_conditional_edges("generate", check_parsing_error, {"check_code": "check_code", "generate": "generate"})
-    cli_workflow.add_conditional_edges("check_code", decide_finish, {"end": END, "generate": "generate"})
-    thread_cfg = {"configurable": {"thread_id": uuid.uuid4()}}
-    checkpointer = MemorySaver()
-    cli_graph = cli_workflow.compile(checkpointer=checkpointer)
-    
     while True:
         ui = input("User: ")
         if ui.lower() in ['q', 'quit', 'exit']:
             break
-        for ev in cli_graph.stream({"messages": [("user", ui)], "iterations": 0, "error": "", "dataset_path": ""}, config=thread_cfg):
+        for ev in graph.stream({"messages": [("user", ui)], "iterations": 0, "error": "", "dataset_path": ""}, config=thread_cfg):
             for v in ev.values():
                 print("Assistant:", v['messages'][-1])

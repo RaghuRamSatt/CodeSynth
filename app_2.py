@@ -55,7 +55,6 @@ if 'dataset_path' not in st.session_state: st.session_state.dataset_path = None
 if 'generated_code' not in st.session_state: st.session_state.generated_code = ""
 if 'code_execution_results' not in st.session_state: st.session_state.code_execution_results = None
 if 'conversation_filename' not in st.session_state: st.session_state.conversation_filename = None
-if 'model_choice' not in st.session_state: st.session_state.model_choice = "groq-gemma"
 
 # Title & description
 st.title("Data Analysis LLM Agent")
@@ -68,49 +67,12 @@ capture outputs and figures securely.
 # Sidebar
 with st.sidebar:
     st.header("Configuration")
-    
-    # API Key Status
-    st.subheader("API Keys")
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    
-    if groq_api_key:
-        st.success("Groq API Key: ✓ Connected")
+    api_key = os.getenv("GROQ_API_KEY")
+    if api_key:
+        st.success("LangGraph API Key: ✓ Connected")
     else:
-        st.error("Groq API Key: ✗ Missing")
+        st.error("LangGraph API Key: ✗ Missing")
         st.info("Add GROQ_API_KEY to your .env file")
-    
-    if anthropic_api_key:
-        st.success("Claude API Key: ✓ Connected")
-    else:
-        st.error("Claude API Key: ✗ Missing")
-        st.info("Add ANTHROPIC_API_KEY to your .env file")
-    
-    if openai_api_key:
-        st.success("OpenAI API Key: ✓ Connected")
-    else:
-        st.error("OpenAI API Key: ✗ Missing")
-        st.info("Add OPENAI_API_KEY to your .env file")
-        
-    # Model selection
-    st.subheader("Select Model")
-    model_choice = st.selectbox(
-        "Choose an LLM model:",
-        [
-            "groq-gemma", 
-            "groq-llama", 
-            "claude", 
-            "openai-gpt4.1", 
-            "openai-o4mini"
-        ],
-        index=["groq-gemma", "groq-llama", "claude", "openai-gpt4.1", "openai-o4mini"].index(st.session_state.model_choice),
-        key="model_selector"
-    )
-    
-    # Update session state when selection changes
-    st.session_state.model_choice = model_choice
-    
     # Data upload
     st.subheader("Upload Dataset")
     uploaded = st.file_uploader("Choose a CSV/Excel/JSON file", type=["csv","xlsx","xls","json"])
@@ -312,10 +274,13 @@ with col1:
                         
         
         ui = st.chat_input("Ask about your data")
+        # b2, b4 = st.columns(2)
+        # with b2: run = st.button('Run Code', disabled=not st.session_state.generated_code)
+        # with b4: new = st.button('New Query')
         if ui:
-            with st.spinner(f'Generating code via {st.session_state.model_choice}…'):
+            with st.spinner('Generating code via LangGraph…'):
                 try:
-                    out = synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path, st.session_state.model_choice)
+                    out = synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path)
                     st.session_state.generated_code = out['code'].strip()
                     st.session_state.conversation.append({'role':'user', 'content':ui, 'type':'text'})
                     st.session_state.conversation.append({'role':'assistant', 'content':{'prefix': out['prefix'], 
@@ -329,6 +294,9 @@ with col1:
                 except Exception as e:
                     st.error(f'Error generating code: {e}')
                     logger.error('Synthesis failed', exc_info=True)
+        # if run: 
+        #     execute_code()
+        # if new: st.session_state.generated_code=st.session_state.code_execution_results=None
     else:
         st.info('Please load a dataset first.')
 

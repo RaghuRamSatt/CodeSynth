@@ -136,3 +136,12 @@ zstandard==0.23.0
 # sudo service docker start
 # newgrp docker
 # docker ps
+
+# Remove all containers (this is safe as they're temporary)
+# docker rm -f $(docker ps -aq)
+
+# Remove all images (this will force Docker to rebuild fresh ones)
+# docker rmi -f $(docker images -a -q)
+
+
+# How is the price dependent on clarity?
