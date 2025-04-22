@@ -218,11 +218,21 @@ python run_evaluation.py --compare --agents "openai-gpt4.1,claude-sonnet" --cate
 
 ### DS-1000 Benchmark Adaptation
 
-CodeSynth incorporates a custom adaptation of the DS-1000 benchmark, a prominent academic benchmark for data science code generation:
+CodeSynth incorporates a custom adaptation of the [DS-1000 benchmark](https://ds1000-code-gen.github.io/), a prominent academic benchmark for data science code generation:
 
 - **Curated Selection**: We've carefully selected 60 representative problems from the original DS-1000 benchmark
 - **Custom Integration**: Modified the evaluation framework to work seamlessly with our LLM agents
 - **Direct Comparison**: Enables comparison with published academic results while being computationally manageable
+
+#### About DS-1000
+
+DS-1000 is a comprehensive benchmark created by Lai et al. (2022) featuring 1,000 data science problems that:
+- Reflect realistic use cases collected from StackOverflow
+- Include reliable metrics for functional correctness
+- Guard against model memorization through problem perturbations
+- Span seven popular Python libraries (NumPy, Pandas, Matplotlib, etc.)
+
+For more information, including the original paper, code, and dataset, visit the [official DS-1000 website](https://ds1000-code-gen.github.io/).
 
 #### Implementation Details
 
@@ -263,7 +273,6 @@ python DS-1000-main/selected_problems_60/run_claude_selected.py  # For Claude 3.
 Results are analyzed by library category and aggregated for comprehensive performance assessment, allowing us to identify strengths and weaknesses across different data science domains.
 
 
-
 ## Project Structure
 ```
 CodeSynth/
@@ -284,13 +293,15 @@ CodeSynth/
 │   └── user_datasets/    # User-uploaded datasets
 ├── database/             # Database utilities
 ├── debug_app.py          # Debugging version of app
+├── DS-1000-main/         # DS-1000 benchmark adaptation
+│   ├── selected_problems_60/ # Curated subset of DS-1000 problems + implementation to run on selected subset
 ├── evaluation/           # Evaluation framework
 ├── multi_agent_synth.py  # Multi-agent system
 ├── requirements.txt      # Python dependencies
 ├── run_evaluation.py     # Evaluation script
 ├── run.sh                # Launch script
 ├── setup.sh              # Setup script
-└── utils/                # Utility functions
+└── utils/                # Utility function
 ```
 
 
