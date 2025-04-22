@@ -1,5 +1,6 @@
 import os
 import uuid
+import shutil
 from typing import List, Dict
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
@@ -129,6 +130,26 @@ def check_parsing_error(state: GraphState) -> str:
     else:
         return 'check_code'
 
+def cleanup_temp_files():
+    """Clean up temporary figure and script files"""
+    temp_dirs = [
+        os.path.join("data", "tmp_figs"),
+        os.path.join("data", "tmp_script.py")
+    ]
+    
+    for path in temp_dirs:
+        if os.path.isdir(path):
+            try:
+                shutil.rmtree(path)
+            except Exception as e:
+                print(f"Error cleaning up directory {path}: {e}")
+        elif os.path.isfile(path):
+            try:
+                os.remove(path)
+            except Exception as e:
+                print(f"Error removing file {path}: {e}")
+
+            
 # Function to get the appropriate LLM based on model choice
 def get_llm(model_choice="groq-gemma"):
     if model_choice == "claude":
@@ -146,6 +167,10 @@ def get_llm(model_choice="groq-gemma"):
         return ChatGroq(temperature=0.1, model="gemma2-9b-it", api_key=GROQ_API_KEY)
 
 def synthesize(user_query: str, dataset_info: Dict, dataset_path: str, model_choice="groq-gemma") -> Dict:
+
+    # Clean up any leftover temp files from previous runs
+    cleanup_temp_files()
+
     # Build dataset info text
     info = f"Dataset name: {dataset_info['name']}\n"
     info += f"Shape: {dataset_info['shape'][0]} rows, {dataset_info['shape'][1]} columns\n"

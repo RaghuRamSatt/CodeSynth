@@ -17,13 +17,14 @@ def _cs(*a,**k):
 plt.subplots=_cs
 
 import pandas as pd
-# Load the dataset
+
+# Read the CSV file into a pandas DataFrame
 df = pd.read_csv('/sandbox/data.csv')
-# Check for missing values
-missing_values = df.isnull().sum()
-print(missing_values)
+
+# Print the column names of the DataFrame
+print(df.columns)
 
 # save figures to disk
 import os
-os.makedirs('/sandbox/figs',exist_ok=True)
-for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
+os.makedirs('/sandbox/figs', exist_ok=True)
+for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png', dpi=100)
