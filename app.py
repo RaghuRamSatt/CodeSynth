@@ -19,22 +19,6 @@ from code_synth_agent import synthesize
 import json
 from datetime import datetime
 
-CONVO_DIR = os.path.join("data", "conversations")
-os.makedirs(CONVO_DIR, exist_ok=True)
-
-def save_conversation_to_file():
-    if not st.session_state.conversation:
-        return
-
-    # Use existing session filename if it exists
-    if st.session_state.conversation_filename is None:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        st.session_state.conversation_filename = f"session_{timestamp}.json"
-
-    path = os.path.join(CONVO_DIR, st.session_state.conversation_filename)
-    with open(path, 'w') as f:
-        json.dump(st.session_state.conversation, f, indent=2)
-
 # Configure logging
 import logging
 logging.basicConfig(
@@ -54,7 +38,7 @@ if 'dataset_info' not in st.session_state: st.session_state.dataset_info = {}
 if 'dataset_path' not in st.session_state: st.session_state.dataset_path = None
 if 'generated_code' not in st.session_state: st.session_state.generated_code = ""
 if 'code_execution_results' not in st.session_state: st.session_state.code_execution_results = None
-if 'conversation_filename' not in st.session_state: st.session_state.conversation_filename = None
+# if 'conversation_filename' not in st.session_state: st.session_state.conversation_filename = None
 if 'model_choice' not in st.session_state: st.session_state.model_choice = "groq-gemma"
 
 # Title & description
@@ -74,24 +58,35 @@ with st.sidebar:
     groq_api_key = os.getenv("GROQ_API_KEY")
     anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    gemini_api_key = os.getenv("GOOGLE_API_KEY")
     
-    if groq_api_key:
-        st.success("Groq API Key: ✓ Connected")
-    else:
-        st.error("Groq API Key: ✗ Missing")
-        st.info("Add GROQ_API_KEY to your .env file")
+    if st.session_state.model_choice in ["groq-gemma", "groq-llama"]:
+        if groq_api_key:
+            st.success("Groq API Key: ✓ Connected")
+        else:
+            st.error("Groq API Key: ✗ Missing")
+            st.info("Add GROQ_API_KEY to your .env file")
     
-    if anthropic_api_key:
-        st.success("Claude API Key: ✓ Connected")
-    else:
-        st.error("Claude API Key: ✗ Missing")
-        st.info("Add ANTHROPIC_API_KEY to your .env file")
+    if st.session_state.model_choice == "claude":
+        if anthropic_api_key:
+            st.success("Claude API Key: ✓ Connected")
+        else:
+            st.error("Claude API Key: ✗ Missing")
+            st.info("Add ANTHROPIC_API_KEY to your .env file")
     
-    if openai_api_key:
-        st.success("OpenAI API Key: ✓ Connected")
-    else:
-        st.error("OpenAI API Key: ✗ Missing")
-        st.info("Add OPENAI_API_KEY to your .env file")
+    if st.session_state.model_choice in ["openai-gpt4.1", "openai-o4mini"]:
+        if openai_api_key:
+            st.success("OpenAI API Key: ✓ Connected")
+        else:
+            st.error("OpenAI API Key: ✗ Missing")
+            st.info("Add OPENAI_API_KEY to your .env file")
+    
+    if st.session_state.model_choice == "gemini-2.5":
+        if gemini_api_key:
+            st.success("Gemini API Key: ✓ Connected")
+        else:
+            st.error("Gemini API Key: ✗ Missing")
+            st.info("Add GEMINI_API_KEY to your .env file")
         
     # Model selection
     st.subheader("Select Model")
@@ -102,9 +97,10 @@ with st.sidebar:
             "groq-llama", 
             "claude", 
             "openai-gpt4.1", 
-            "openai-o4mini"
+            "openai-o4mini",
+            "gemini-2.5"
         ],
-        index=["groq-gemma", "groq-llama", "claude", "openai-gpt4.1", "openai-o4mini"].index(st.session_state.model_choice),
+        index=["groq-gemma", "groq-llama", "claude", "openai-gpt4.1", "openai-o4mini", "gemini-2.5"].index(st.session_state.model_choice),
         key="model_selector"
     )
     
@@ -173,30 +169,30 @@ with st.sidebar:
             st.error(f"Error loading sample: {e}")
     
     
-    st.subheader("Load Previous Conversation")
+    # st.subheader("Load Previous Conversation")
 
-    # Get list of saved sessions
-    session_files = sorted(
-        [f for f in os.listdir(CONVO_DIR) if f.endswith('.json')],
-        reverse=True
-    )
+    # # Get list of saved sessions
+    # session_files = sorted(
+    #     [f for f in os.listdir(CONVO_DIR) if f.endswith('.json')],
+    #     reverse=True
+    # )
 
-    if session_files:
-        selected_file = st.selectbox("Choose session to load", session_files)
+    # if session_files:
+    #     selected_file = st.selectbox("Choose session to load", session_files)
 
-        if st.button("Load Conversation"):
-            print(f"Loading conversation from {selected_file}")
-            try:
-                with open(os.path.join(CONVO_DIR, selected_file), 'r') as f:
-                    st.session_state.conversation = json.load(f)
-                    st.session_state.conversation_filename = selected_file
-                    st.success(f"Loaded: {selected_file}")
-                    st.rerun()
-                    print(f"loaded conversation - {st.session_state.conversation}")
-            except Exception as e:
-                st.error(f"Failed to load conversation: {e}")
-    else:
-        st.info("No previous sessions found.")
+    #     if st.button("Load Conversation"):
+    #         print(f"Loading conversation from {selected_file}")
+    #         try:
+    #             with open(os.path.join(CONVO_DIR, selected_file), 'r') as f:
+    #                 st.session_state.conversation = json.load(f)
+    #                 st.session_state.conversation_filename = selected_file
+    #                 st.success(f"Loaded: {selected_file}")
+    #                 st.rerun()
+    #                 print(f"loaded conversation - {st.session_state.conversation}")
+    #         except Exception as e:
+    #             st.error(f"Failed to load conversation: {e}")
+    # else:
+    #     st.info("No previous sessions found.")
 
     
     
@@ -209,99 +205,19 @@ with st.sidebar:
 
 # Execute code in sandbox
 
-# def execute_code():
-#     if not st.session_state.generated_code:
-#         return
-    
-#     # Always clear previous results first
-#     if st.session_state.code_execution_results is not None:
-#         st.session_state.code_execution_results['figures'] = []
-    
-#     res = {"success":False, "output":"", "error":"", "figures":[], "execution_time":0}
-#     start_time = time.time()
-#     try:
-#         # prepare temp dirs and script
-#         tmp_script = os.path.join("data", "tmp_script.py")
-#         tmp_fig_dir = os.path.join("data", "tmp_figs")
-        
-#         # Clean up previous figures
-#         if os.path.exists(tmp_fig_dir): 
-#             shutil.rmtree(tmp_fig_dir)
-#         os.makedirs(tmp_fig_dir, exist_ok=True)
-#         # build script: monkey-patch, user code, save figs
-#         prelude="""
-# import matplotlib.pyplot as plt
-# import warnings
-# warnings.filterwarnings('ignore')
-# _original_figure=plt.figure
-# _figs=[]
-# def _cf(*a,**k):
-#     fig=_original_figure(*a,**k)
-#     _figs.append(fig)
-#     return fig
-# plt.figure=_cf
-# _orig_sub=plt.subplots
-# def _cs(*a,**k):
-#     fig,ax=_orig_sub(*a,**k)
-#     _figs.append(fig)
-#     return fig,ax
-# plt.subplots=_cs
-# """
-#         save_block="""
-# # save figures to disk
-# import os
-# os.makedirs('/sandbox/figs',exist_ok=True)
-# for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
-# """
-#         script_content = prelude + "\n" + st.session_state.generated_code + "\n" + save_block
-#         with open(tmp_script,'w') as f: f.write(script_content)
-#         # run in sandbox
-#         with SandboxSession(lang='python', keep_template=True) as sess:
-#             # copy dataset and script
-#             sess.copy_to_runtime(st.session_state.dataset_path, '/sandbox/data.csv')
-#             sess.copy_to_runtime(tmp_script, '/sandbox/tmp_script.py')
-#             # execute
-#             result = sess.execute_command('python /sandbox/tmp_script.py')
-#             out = getattr(result, 'text', '')
-#             # collect figures
-#             ls = sess.execute_command('ls /sandbox/figs')
-#             names = ls.text.strip().split() if ls.text else []
-#             figs = []
-#             for fn in names:
-#                 remote = f'/sandbox/figs/{fn}'
-#                 local = os.path.join(tmp_fig_dir,fn)
-#                 sess.copy_from_runtime(remote, local)
-#                 with open(local,'rb') as im: figs.append(base64.b64encode(im.read()).decode('utf-8'))
-#         # populate results
-#         res['success'] = True
-#         res['output'] = out
-#         res['figures'] = figs
-#     except Exception as e:
-#         res['error'] = f"{type(e).__name__}: {e}"
-#     finally:
-#         res['execution_time'] = time.time()-start_time
-#         st.session_state.code_execution_results=res
-
 def execute_code():
     if not st.session_state.generated_code:
         return
-    
-    # Always create a fresh results object
-    res = {"success": False, "output": "", "error": "", "figures": [], "execution_time": 0}
+    res = {"success":False, "output":"", "error":"", "figures":[], "execution_time":0}
     start_time = time.time()
-    
     try:
-        # Delete any existing tmp_figs directory completely
-        tmp_fig_dir = os.path.join("data", "tmp_figs")
-        if os.path.exists(tmp_fig_dir):
-            shutil.rmtree(tmp_fig_dir)
-        os.makedirs(tmp_fig_dir, exist_ok=True)
-        
-        # prepare script
+        # prepare temp dirs and script
         tmp_script = os.path.join("data", "tmp_script.py")
-        
+        tmp_fig_dir = os.path.join("data", "tmp_figs")
+        if os.path.exists(tmp_fig_dir): shutil.rmtree(tmp_fig_dir)
+        os.makedirs(tmp_fig_dir, exist_ok=True)
         # build script: monkey-patch, user code, save figs
-        prelude = """
+        prelude="""
 import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings('ignore')
@@ -319,52 +235,44 @@ def _cs(*a,**k):
     return fig,ax
 plt.subplots=_cs
 """
-        save_block = """
+        save_block="""
 # save figures to disk
 import os
+import shutil
+# Remove all files in /sandbox/figs if it exists
+if os.path.exists('/sandbox/figs'):
+    shutil.rmtree('/sandbox/figs')
 os.makedirs('/sandbox/figs', exist_ok=True)
-for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png', dpi=100)
+for i,fig in enumerate(_figs): fig.savefig(f'/sandbox/figs/fig{i}.png',dpi=100)
 """
         script_content = prelude + "\n" + st.session_state.generated_code + "\n" + save_block
-        with open(tmp_script, 'w') as f:
-            f.write(script_content)
-            
+        with open(tmp_script,'w') as f: f.write(script_content)
         # run in sandbox
         with SandboxSession(lang='python', keep_template=True) as sess:
             # copy dataset and script
             sess.copy_to_runtime(st.session_state.dataset_path, '/sandbox/data.csv')
             sess.copy_to_runtime(tmp_script, '/sandbox/tmp_script.py')
-            
             # execute
             result = sess.execute_command('python /sandbox/tmp_script.py')
             out = getattr(result, 'text', '')
-            
-            # collect figures - only if they exist
-            ls = sess.execute_command('ls -l /sandbox/figs')
-            names = []
-            if "total 0" not in ls.text:  # Check if directory is empty
-                ls = sess.execute_command('ls /sandbox/figs')
-                names = ls.text.strip().split() if ls.text else []
-            
+            # collect figures
+            ls = sess.execute_command('ls /sandbox/figs')
+            names = ls.text.strip().split() if ls.text else []
             figs = []
             for fn in names:
                 remote = f'/sandbox/figs/{fn}'
-                local = os.path.join(tmp_fig_dir, fn)
+                local = os.path.join(tmp_fig_dir,fn)
                 sess.copy_from_runtime(remote, local)
-                with open(local, 'rb') as im:
-                    figs.append(base64.b64encode(im.read()).decode('utf-8'))
-        
+                with open(local,'rb') as im: figs.append(base64.b64encode(im.read()).decode('utf-8'))
         # populate results
         res['success'] = True
         res['output'] = out
         res['figures'] = figs
-        
     except Exception as e:
         res['error'] = f"{type(e).__name__}: {e}"
     finally:
-        res['execution_time'] = time.time() - start_time
-        st.session_state.code_execution_results = res
-
+        res['execution_time'] = time.time()-start_time
+        st.session_state.code_execution_results=res
 
 # Main layout
 col1, col2 = st.columns([3,2])
@@ -386,7 +294,7 @@ with col1:
                     st.markdown(message["content"]['prefix'])
                     with st.expander('Show code'):
                         st.code(message['content']['code'], language='python')
-                        b1, b2 = st.columns(2)
+                        b1, _, b2 = st.columns([2, 6, 2])
                         # Add download button for the code
                         with b1:
                             st.download_button(
@@ -398,7 +306,7 @@ with col1:
                             )
                         with b2:
                             # Add run button for the code
-                            if st.button("Run Code", key=f"run_code_{i}"):
+                            if st.button("▶️ Run Code", key=f"run_code_{i}"):
                                 st.session_state.generated_code = message['content']['code']
                                 execute_code()
                         
@@ -407,22 +315,15 @@ with col1:
         if ui:
             with st.spinner(f'Generating code via {st.session_state.model_choice}…'):
                 try:
-                    # Clear previous execution results completely
-                    st.session_state.code_execution_results = {
-                        "success": False,
-                        "output": "",
-                        "error": "",
-                        "figures": [],
-                        "execution_time": 0
-                    }
-                    
                     out = synthesize(ui, st.session_state.dataset_info, st.session_state.dataset_path, st.session_state.model_choice)
                     st.session_state.generated_code = out['code'].strip()
                     st.session_state.conversation.append({'role':'user', 'content':ui, 'type':'text'})
                     st.session_state.conversation.append({'role':'assistant', 'content':{'prefix': out['prefix'], 
-                                                                                    'code':st.session_state.generated_code
-                                                                                    }, 'type':'text'})
-                    # Execute the code after generating it
+                                                                                         'code':st.session_state.generated_code
+                                                                                         }, 'type':'text'})
+                    # save_conversation_to_file()
+                    if st.session_state.code_execution_results is not None:
+                        st.session_state.code_execution_results['figures'] = []
                     execute_code()
                     st.rerun()
                 except Exception as e:
@@ -433,48 +334,19 @@ with col1:
 
     
     
-# with col2:
-#     st.subheader('Generated Code')
-#     if st.session_state.generated_code: st.code(st.session_state.generated_code,language='python')
-#     else: st.info('Code will appear here.')
-#     if st.session_state.code_execution_results:
-#         r=st.session_state.code_execution_results
-#         if r['success']:
-#             st.success('Code executed successfully')
-#             st.write(f"Execution time: {r['execution_time']:.2f}s")
-#         else:
-#             st.error('Execution failed'); st.error(r['error'])
-#         if r['output']: st.subheader('Output'); st.text(r['output'])
-#         if r['figures']:
-#             st.subheader('Visualizations')
-#             for i,b64 in enumerate(r['figures']): 
-#                 st.image(BytesIO(base64.b64decode(b64)),caption=f'Figure {i+1}')
-
 with col2:
     st.subheader('Generated Code')
-    if st.session_state.generated_code: 
-        st.code(st.session_state.generated_code, language='python')
-    else: 
-        st.info('Code will appear here.')
-    
+    if st.session_state.generated_code: st.code(st.session_state.generated_code,language='python')
+    else: st.info('Code will appear here.')
     if st.session_state.code_execution_results:
-        r = st.session_state.code_execution_results
+        r=st.session_state.code_execution_results
         if r['success']:
             st.success('Code executed successfully')
             st.write(f"Execution time: {r['execution_time']:.2f}s")
         else:
-            st.error('Execution failed')
-            st.error(r['error'])
-        
-        if r['output']: 
-            st.subheader('Output')
-            st.text(r['output'])
-        
-        # Only show visualization section if there are figures
-        if r['figures'] and len(r['figures']) > 0:
+            st.error('Execution failed'); st.error(r['error'])
+        if r['output']: st.subheader('Output'); st.text(r['output'])
+        if r['figures']:
             st.subheader('Visualizations')
-            for i, b64 in enumerate(r['figures']):
-                st.image(BytesIO(base64.b64decode(b64)), caption=f'Figure {i+1}')
-        else:
-            # Optional- To explicitly indicate no visualizations
-            st.text("No visualizations generated")
+            for i,b64 in enumerate(r['figures']): 
+                st.image(BytesIO(base64.b64decode(b64)),caption=f'Figure {i+1}')
