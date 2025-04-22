@@ -1,6 +1,5 @@
 import os
 import uuid
-import shutil
 from typing import List, Dict
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
@@ -10,6 +9,7 @@ from langgraph.graph.message import add_messages
 from langchain_groq.chat_models import ChatGroq
 from langchain_anthropic.chat_models import ChatAnthropic
 from langchain_openai.chat_models import ChatOpenAI
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from llm_sandbox import SandboxSession
 from pydantic import BaseModel, Field
@@ -19,6 +19,7 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Define graph state
 class GraphState(TypedDict):
@@ -130,26 +131,6 @@ def check_parsing_error(state: GraphState) -> str:
     else:
         return 'check_code'
 
-def cleanup_temp_files():
-    """Clean up temporary figure and script files"""
-    temp_dirs = [
-        os.path.join("data", "tmp_figs"),
-        os.path.join("data", "tmp_script.py")
-    ]
-    
-    for path in temp_dirs:
-        if os.path.isdir(path):
-            try:
-                shutil.rmtree(path)
-            except Exception as e:
-                print(f"Error cleaning up directory {path}: {e}")
-        elif os.path.isfile(path):
-            try:
-                os.remove(path)
-            except Exception as e:
-                print(f"Error removing file {path}: {e}")
-
-            
 # Function to get the appropriate LLM based on model choice
 def get_llm(model_choice="groq-gemma"):
     if model_choice == "claude":
@@ -162,15 +143,13 @@ def get_llm(model_choice="groq-gemma"):
         return ChatOpenAI(temperature=0.1, model="gpt-4.1", api_key=OPENAI_API_KEY)
     elif model_choice == "openai-o4mini":
         return ChatOpenAI(model="o4-mini", api_key=OPENAI_API_KEY)
+    elif model_choice == "gemini-2.5":
+        return ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", api_key=GOOGLE_API_KEY)
     else:
         # Default to Groq/Gemma
         return ChatGroq(temperature=0.1, model="gemma2-9b-it", api_key=GROQ_API_KEY)
 
 def synthesize(user_query: str, dataset_info: Dict, dataset_path: str, model_choice="groq-gemma") -> Dict:
-
-    # Clean up any leftover temp files from previous runs
-    cleanup_temp_files()
-
     # Build dataset info text
     info = f"Dataset name: {dataset_info['name']}\n"
     info += f"Shape: {dataset_info['shape'][0]} rows, {dataset_info['shape'][1]} columns\n"
