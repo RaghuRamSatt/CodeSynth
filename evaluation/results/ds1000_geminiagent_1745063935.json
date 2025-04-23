@@ -1,0 +1,86 @@
+{
+    "agent_id": "GeminiAgent",
+    "timestamp": "2025-04-19T07:58:02.968296",
+    "overall_metrics": {
+        "accuracy": 0.0,
+        "correct_count": 0,
+        "total_problems": 5,
+        "avg_generation_time": 3.2398236274719237,
+        "library_metrics": {
+            "Numpy": {
+                "total": 5,
+                "correct": 0,
+                "accuracy": 0.0
+            }
+        }
+    },
+    "test_cases": [
+        {
+            "problem_id": 0,
+            "library": "Numpy",
+            "prompt": "Problem:\nHow do I get the dimensions of an array? For instance, this is (2, 2):\na = np.array([[1,2],[3,4]])\n\nA:\n<code>\nimport numpy as np\na = np.array([[1,2],[3,4]])\n</code>\nresult = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "# Import numpy for numerical operations\nimport numpy as np\n\n# The variable 'a' is already defined with the NumPy array\n# a = np.array([[1, 2], [3, 4]])\n\n# To get the dimensions (shape) of a NumPy array, we use the .shape attribute.\n# This attribute returns a tuple where each element represents the number of elements\n# along the corresponding dimension.\nresult = a.shape",
+            "generation_time": 2.117096185684204,
+            "evaluation": {
+                "execution": null,
+                "string": true,
+                "correct": null
+            },
+            "correct": null
+        },
+        {
+            "problem_id": 1,
+            "library": "Numpy",
+            "prompt": "Problem:\nI want to figure out how to remove nan values from my array. \nFor example, My array looks something like this:\nx = [1400, 1500, 1600, nan, nan, nan ,1700] #Not in this exact configuration\nHow can I remove the nan values from x to get sth like:\nx = [1400, 1500, 1600, 1700]\nA:\n<code>\nimport numpy as np\nx = np.array([1400, 1500, 1600, np.nan, np.nan, np.nan ,1700])\n</code>\nx = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "# Import necessary library\nimport numpy as np\n\n# Assuming 'x' is already defined and is a NumPy array\n# Example x (replace with your actual data if not already defined)\n# x = np.array([1400, 1500, 1600, np.nan, np.nan, np.nan ,1700])\n\n# Handle potential errors: Check if x is a NumPy array\nif not isinstance(x, np.ndarray):\n    print(\"Error: Input variable 'x' is not a NumPy array.\")\n    # Depending on the requirement, you might want to raise an exception or return a specific value\nelse:\n    # Use boolean indexing to filter out NaN values\n    # np.isnan(x) returns a boolean array where True indicates NaN\n    # The tilde (~) negates the boolean array, so True indicates non-NaN values\n    x = x[~np.isnan(x)]\n\n# The variable 'x' now contains the array with NaN values removed\n# You can print x to verify the result\n# print(x)",
+            "generation_time": 2.4537441730499268,
+            "evaluation": {
+                "execution": null,
+                "string": true,
+                "correct": null
+            },
+            "correct": null
+        },
+        {
+            "problem_id": 2,
+            "library": "Numpy",
+            "prompt": "Problem:\nI want to figure out how to replace nan values from my array with np.inf. \nFor example, My array looks something like this:\nx = [1400, 1500, 1600, nan, nan, nan ,1700] #Not in this exact configuration\nHow can I replace the nan values from x?\nA:\n<code>\nimport numpy as np\nx = np.array([1400, 1500, 1600, np.nan, np.nan, np.nan ,1700])\n</code>\nx = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "# Problem: Replace NaN values with np.inf in a NumPy array.\n\n# Check if the array contains any NaN values.\n# If there are NaN values, replace them with np.inf.\nif np.isnan(x).any():\n    x = np.nan_to_inf(x)\n\n# The variable 'x' now contains the array with NaN values replaced by np.inf.\n# print(x) # Uncomment to see the result",
+            "generation_time": 1.4232990741729736,
+            "evaluation": {
+                "error": "Evaluation failed",
+                "execution": false,
+                "string": false,
+                "correct": false
+            },
+            "correct": false
+        },
+        {
+            "problem_id": 3,
+            "library": "Numpy",
+            "prompt": "Problem:\nI want to figure out how to remove nan values from my array. \nFor example, My array looks something like this:\nx = [[1400, 1500, 1600, nan], [1800, nan, nan ,1700]] #Not in this exact configuration\nHow can I remove the nan values from x?\nNote that after removing nan, the result cannot be np.array due to dimension mismatch, so I want to convert the result to list of lists.\nx = [[1400, 1500, 1600], [1800, 1700]]\nA:\n<code>\nimport numpy as np\nx = np.array([[1400, 1500, 1600, np.nan], [1800, np.nan, np.nan ,1700]])\n</code>\nresult = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "import numpy as np\n\n# Example array with NaN values (as provided by the user)\n# In a real scenario, 'df' would be your loaded dataset.\n# For this specific problem, we will use the user's example array 'x'.\nx = np.array([[1400, 1500, 1600, np.nan], [1800, np.nan, np.nan, 1700]])\n\n# Initialize an empty list to store the result\nresult = []\n\n# Iterate through each sub-array in the input array x\nfor row in x:\n    # Create a new list to store non-NaN values for the current row\n    cleaned_row = []\n    # Iterate through each element in the current row\n    for element in row:\n        # Check if the element is not NaN using np.isnan()\n        if not np.isnan(element):\n            # If the element is not NaN, append it to the cleaned_row list\n            cleaned_row.append(element)\n    # After processing all elements in the row, append the cleaned_row to the result list\n    result.append(cleaned_row)\n\n# The 'result' variable now holds the list of lists with NaN values removed\n# print(result) # Uncomment to display the result",
+            "generation_time": 2.710330009460449,
+            "evaluation": {
+                "error": "Evaluation failed",
+                "execution": false,
+                "string": false,
+                "correct": false
+            },
+            "correct": false
+        },
+        {
+            "problem_id": 4,
+            "library": "Numpy",
+            "prompt": "Problem:\nLet's say I have a 1d numpy positive integer array like this:\na = array([1,0,3])\nI would like to encode this as a 2D one-hot array(for natural number)\nb = array([[0,1,0,0], [1,0,0,0], [0,0,0,1]])\nThe leftmost element corresponds to 0 in `a`(NO MATTER whether 0 appears in `a` or not.), and the rightmost vice versa.\nIs there a quick way to do this only using numpy? Quicker than just looping over a to set elements of b, that is.\nA:\n<code>\nimport numpy as np\na = np.array([1, 0, 3])\n</code>\nb = ... # put solution in this variable\nBEGIN SOLUTION\n<code>\n",
+            "generated_code": "import numpy as np\n\n# Assume 'a' is already defined as the input 1D numpy array of positive integers\n\n# Determine the maximum value in the input array. We add 1 to account for 0.\n# This defines the number of columns in the one-hot encoded array.\n# Ensure the array contains non-negative integers.\nif not np.all(a >= 0):\n    raise ValueError(\"Input array must contain non-negative integers.\")\n\nmax_value = a.max() if a.size > 0 else -1\nnum_cols = max_value + 1\n\n# Handle the case of an empty input array gracefully.\nif a.size == 0:\n    b = np.empty((0, num_cols), dtype=int)\nelse:\n    # Create an output array of zeros with dimensions (number of rows in 'a', number of columns determined by max_value).\n    b = np.zeros((a.size, num_cols), dtype=int)\n\n    # Use advanced indexing to set the appropriate elements to 1.\n    # 'np.arange(a.size)' creates an array of row indices (0, 1, 2, ...).\n    # 'a' provides the column indices for each row.\n    b[np.arange(a.size), a] = 1\n\n# The variable 'b' now contains the one-hot encoded 2D numpy array.",
+            "generation_time": 7.494648694992065,
+            "evaluation": {
+                "execution": null,
+                "string": null,
+                "correct": null
+            },
+            "correct": null
+        }
+    ]
+}
