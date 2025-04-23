@@ -128,4 +128,20 @@ zstandard==0.23.0
 # source venv/bin/activate
 # conda deactivate
 # streamlit run app.py
-# python run_evaluation.py --agent groq-llama --categories "basic_statistics,data_cleaning,correlation_analysis,time_series_analysis,categorical_analysis,visualization,advanced_analysis" --limit 30 --verbose
+# python run_evaluation.py --agent openai-gpt4.1 --categories "basic_statistics,data_cleaning,correlation_analysis,time_series_analysis,categorical_analysis,visualization,advanced_analysis" --limit 30 --verbose
+# python run_evaluation.py --agent openai-gpt4.1 --categories "basic_statistics,data_cleaning,correlation_analysis,time_series_analysis,categorical_analysis,visualization,advanced_analysis" --limit 30 --verbose
+
+
+
+# sudo service docker start
+# newgrp docker
+# docker ps
+
+# Remove all containers (this is safe as they're temporary)
+# docker rm -f $(docker ps -aq)
+
+# Remove all images (this will force Docker to rebuild fresh ones)
+# docker rmi -f $(docker images -a -q)
+
+
+# How is the price dependent on clarity?

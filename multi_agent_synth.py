@@ -23,6 +23,7 @@ from agents.opensource_agent import OpenSourceAgent
 from agents.groq_agent import GroqAgent
 from agents.openai_agent import OpenAIAgent
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -338,7 +339,12 @@ def decide_finish(state: GraphState) -> str:
     """
     Decide whether to finish or retry code generation.
     """
+    # Add specific treatment for OpenAI models that might get stuck
+    if state["agent_type"] == "openai-gpt4.1" and state["iterations"] >= 2:
+        return "end"
+    
     return 'end' if state["error"] == "no" or state["iterations"] >= 3 else "generate"
+    # return 'end' if state["error"] == "no" or state["iterations"] >= 3 else "generate"
 
 # Build the LangGraph workflow
 # def build_workflow():
@@ -398,6 +404,7 @@ def build_workflow():
     thread_cfg = {"configurable": {"thread_id": uuid.uuid4()}}
     checkpointer = MemorySaver()
     return workflow.compile(checkpointer=checkpointer), thread_cfg
+
 
 # Pre-build the graph
 graph, thread_cfg = build_workflow()

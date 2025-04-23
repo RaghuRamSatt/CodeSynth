@@ -16,7 +16,7 @@ from agents.openai_agent import OpenAIAgent
 from agents.opensource_agent import OpenSourceAgent
 from evaluation.evaluator import ModelEvaluator
 from evaluation.test_suite import TestSuite
-# from evaluation.ds1000_evaluator import DS1000Evaluator
+from evaluation.ds1000_evaluator import DS1000Evaluator
 
 
 # Configure logging
@@ -61,7 +61,7 @@ def get_available_agents():
         from agents.openai_agent import OpenAIAgent
         openai_agent = OpenAIAgent()
         if openai_agent.initialize():
-            # Use the explicit name that matches your command line parameter
+            # Explicit name that matches command line parameter
             agents["openai-gpt4.1"] = openai_agent
             logger.info(f"OpenAI agent initialized successfully with model: {openai_agent.model_name}")
         else:
