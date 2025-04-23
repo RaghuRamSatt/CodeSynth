@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain_groq.chat_models import ChatGroq
-from langchain_anthropic.chat_models import ChatAnthropic
+# from langchain_anthropic.chat_models import ChatAnthropic
+from langchain_openai.chat_models import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from llm_sandbox import SandboxSession
 from pydantic import BaseModel, Field
@@ -15,7 +16,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
 # api_key = os.getenv("GROQ_API_KEY")
-api_key = os.getenv("ANTHROPIC_API_KEY")
+api_key = os.getenv("OPENAI_API_KEY")
 
 # Define graph state
 class GraphState(TypedDict):
@@ -131,7 +132,8 @@ def check_parsing_error(state: GraphState) -> str:
 # Build graph
 workflow = StateGraph(GraphState)
 # llm = ChatGroq(temperature=0.1, api_key=api_key, model="gemma2-9b-it")
-llm = ChatAnthropic(temperature=0.1, model="claude-3-5-sonnet-20240620", api_key=api_key)
+# llm = ChatAnthropic(temperature=0.1, model="claude-3-5-sonnet-20240620", api_key=api_key)
+llm = ChatOpenAI(temperature=0.1, api_key=api_key, model="gpt-4.1")
 structured_llm = llm.with_structured_output(CodeOutput, include_raw=True)
 code_gen_chain = code_gen_prompt | structured_llm | check_groq_output
 
